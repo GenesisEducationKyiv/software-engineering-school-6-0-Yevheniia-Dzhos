@@ -1,0 +1,53 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { AppError } from '../src/utils/errors.js';
+
+vi.mock('../src/db/client.js', () => ({ query: vi.fn() }));
+vi.mock('../src/services/githubService.js', () => ({
+  ensureRepositoryExists: vi.fn(),
+  fetchLatestReleaseTag: vi.fn()
+}));
+vi.mock('../src/services/emailService.js', () => ({ sendConfirmationEmail: vi.fn() }));
+vi.mock('../src/utils/tokens.js', () => ({ generateToken: vi.fn() }));
+
+const { query } = await import('../src/db/client.js');
+const githubService = await import('../src/services/githubService.js');
+const emailService = await import('../src/services/emailService.js');
+const tokens = await import('../src/utils/tokens.js');
+const subscriptionService = await import('../src/services/subscriptionService.js');
+
+describe('subscriptionService', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('rejects invalid repo format', async () => {
+    await expect(subscriptionService.createSubscription({ email: 'a@b.com', repo: 'bad' }))
+      .rejects.toBeInstanceOf(AppError);
+  });
+
+  it('creates a subscription and sends confirmation email', async () => {
+    githubService.fetchLatestReleaseTag.mockResolvedValue('v1.0.0');
+    tokens.generateToken.mockReturnValueOnce('confirm-token-12345').mockReturnValueOnce('unsubscribe-token-12345');
+    query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    await subscriptionService.createSubscription({ email: 'User@Test.com', repo: 'golang/go' });
+
+    expect(githubService.ensureRepositoryExists).toHaveBeenCalledWith('golang/go');
+    expect(emailService.sendConfirmationEmail).toHaveBeenCalledWith('user@test.com', 'confirm-token-12345', 'golang/go');
+  });
+
+  it('lists subscriptions', async () => {
+    query.mockResolvedValueOnce({
+      rows: [{ email: 'user@test.com', repo: 'golang/go', confirmed: true, last_seen_tag: 'v1.0.0' }]
+    });
+
+    const result = await subscriptionService.listSubscriptions('user@test.com');
+    expect(result).toEqual([
+      { email: 'user@test.com', repo: 'golang/go', confirmed: true, last_seen_tag: 'v1.0.0' }
+    ]);
+  });
+});
