@@ -8,7 +8,7 @@
     "start": "node src/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "node -e \"console.log('No linter configured')\""
+    "lint": "eslint ."
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -20,6 +20,9 @@
     "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "eslint": "^9.39.4",
+    "globals": "^17.6.0",
     "supertest": "^7.0.0",
     "vitest": "^2.1.4"
   }
