@@ -2,7 +2,7 @@
 
 ## 1. System Overview
 
-GitHub Release Notifier is a backend web service that allows a user to subscribe an email address to release updates for a GitHub repository. The system validates repository existence through the GitHub API, stores subscriptions in PostgreSQL, requires email confirmation before activation, periodically checks repositories for new releases, and sends notification emails to confirmed subscribers.
+GitHub Release Notifier is a Node.js web application that allows a user to subscribe an email address to release updates for a GitHub repository. The system validates repository existence through the GitHub API, stores subscriptions in PostgreSQL, requires email confirmation before activation, periodically checks repositories for new releases, and sends notification emails to confirmed subscribers.
 
 The current implementation is a small monolithic Node.js service with Express, PostgreSQL, a background release scanner, SMTP-based email delivery, Swagger documentation, and a minimal static UI.
 
@@ -35,8 +35,8 @@ The system must support:
 | Consistency | PostgreSQL is the source of truth for repositories, subscriptions, tokens, confirmation status, and last seen release tags. |
 | Security | Email confirmation is required before notifications are sent. Tokens are random and stored in the database. |
 | Maintainability | Monolithic architecture keeps the project simple and easy to run locally. |
-| Scalability | Current design supports a moderate number of repositories. Future scaling can add queues, workers, Redis, and GitHub webhooks. |
-| Observability | Basic health check exists. Future improvements should add structured logs, metrics, and alerts. |
+| Scalability | Current design supports the expected project workload. |
+| Observability | Basic health check exists. |
 
 ---
 
@@ -52,7 +52,7 @@ Assumptions:
 - average subscriptions per user: 2–3;
 - repositories tracked: much lower than subscriptions because many users may subscribe to the same repository;
 - scan interval: 5 minutes by default;
-- notification volume: depends on GitHub release frequency, usually bursty but low on average.
+- notification traffic: depends on how often repositories publish new releases.
 
 ### 3.2 Data Size
 
@@ -63,13 +63,12 @@ Approximate row sizes:
 
 Even hundreds of thousands of subscriptions fit comfortably in PostgreSQL. The main bottleneck is not storage, but external API rate limits and email delivery throughput.
 
-### 3.3 Bandwidth
+### 3.3 Network Usage
 
-Typical bandwidth is low:
+The application exchanges a relatively small amount of data.
 
-- incoming API requests are small JSON payloads;
-- outgoing traffic includes GitHub API requests and SMTP email delivery;
-- release notification bursts may temporarily increase outgoing email traffic.
+Most requests contain only email addresses and repository names.
+Outgoing traffic mainly consists of GitHub API requests and email notifications.
 
 ---
 
@@ -210,14 +209,14 @@ This design is simple and reliable enough for the current project size, but it i
 
 ### 5.7 Email Service
 
-The email service uses SMTP through Nodemailer.
+The application sends emails through SMTP using Nodemailer.
 
 It sends two email types:
 
 - confirmation email with `/api/confirm/:token` link;
 - release notification email with a GitHub release link and `/api/unsubscribe/:token` link.
 
-Local development can use MailHog. Production can use a real SMTP provider.
+Local development can use MailHog.
 
 ---
 
@@ -332,10 +331,6 @@ unsubscribed_at = COALESCE(unsubscribed_at, NOW())
 ```
 
 Repeated unsubscribe requests do not break state and preserve the original unsubscribe timestamp.
-
-### 7.4 Scanner Consistency
-
-The scanner updates `last_seen_tag` only after sending emails. This reduces the chance of silently missing a release. However, if the process crashes after sending some emails but before updating `last_seen_tag`, duplicate emails may be sent on the next scan. A future queue-based design should store notification events and delivery status to provide stronger delivery guarantees.
 
 ---
 
@@ -513,37 +508,18 @@ Recommended additional tests:
 
 ## 15. Future Improvements
 
-High-priority improvements:
+Possible future improvements:
 
 - add request rate limiting;
-- escape dynamic values in email HTML;
 - add confirmation token expiration;
-- add structured logging;
-- add metrics for scan duration, email success/failure, GitHub errors, and active subscriptions;
 - add retries for email delivery;
-- prevent duplicate scanners in multi-instance deployment.
-
-Medium-priority improvements:
-
-- queue-based notification delivery;
-- Redis cache for latest release lookups;
-- GitHub webhook support;
-- frontend dashboard for managing subscriptions;
-- admin dashboard for monitoring repositories and failed notifications;
-- audit log table.
-
-Long-term improvements:
-
-- separate API and worker processes;
-- horizontal worker scaling;
-- dead-letter queue for failed email jobs;
-- per-repository scan scheduling based on activity;
-- support multiple notification channels such as Slack, Discord, or webhooks.
+- prevent duplicate scanners in multi-instance deployment;
+- add a frontend dashboard for managing subscriptions.
 
 ---
 
 ## 16. Summary
 
-The current design is intentionally simple: a monolithic Express application, PostgreSQL for durable relational state, GitHub API integration for repository and release data, SMTP email delivery, and a periodic background scanner. This architecture is correct for the current project size because it is easy to understand, easy to deploy, and aligned with the accepted ADRs.
+The current design is intentionally simple: a monolithic Express application, PostgreSQL database, GitHub API integration, SMTP email delivery, and a periodic background scanner.
 
-The main production risks are GitHub API rate limits, email delivery reliability, scanner duplication in multi-instance deployments, and lack of queue-based retries. These risks can be addressed incrementally without changing the core domain model.
+This architecture fits the current project scope because it is easy to understand, test, maintain, and run locally.
