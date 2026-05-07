@@ -9,7 +9,7 @@ Accepted
 Users can subscribe to GitHub repository release notifications using email addresses.
 
 Without verification, malicious users could:
-- subscribe чужі email addresses
+- subscribe other users' email addresses
 - spam users
 - abuse the notification system
 
