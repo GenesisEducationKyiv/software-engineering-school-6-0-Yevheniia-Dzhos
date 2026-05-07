@@ -75,8 +75,7 @@ Typical bandwidth is low:
 
 ## High-Level Architecture
 
-![Architecture Diagram](./docs/system-design-diagram.png)
-```
+![Architecture Diagram](./system-design-diagram.png)
 
 ### Architecture Style
 
