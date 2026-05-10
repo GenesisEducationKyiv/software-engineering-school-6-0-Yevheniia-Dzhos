@@ -1,6 +1,12 @@
+process.env.DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/releases';
+process.env.SMTP_HOST = 'localhost';
+process.env.SMTP_PORT = '1025';
+process.env.APP_BASE_URL = 'http://localhost:3000';
+
 import request from 'supertest';
 import { describe, it, expect } from 'vitest';
-import { createApp } from '../src/app.js';
+
+const { createApp } = await import('../src/app.js');
 
 describe('app routes', () => {
   const app = createApp();
