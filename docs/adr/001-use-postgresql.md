@@ -14,7 +14,8 @@ The system requires:
 - relational data structure
 - transactional consistency
 
-Alternative considered:
+Alternatives considered:
+- MySQL
 - MongoDB
 
 ## Decision
@@ -31,6 +32,10 @@ PostgreSQL provides:
 - mature ecosystem and tooling
 
 The subscription model is structured and relational, so a SQL database fits naturally.
+
+Compared with MySQL, PostgreSQL was selected because it provides a strong relational model, mature transactional behavior, rich SQL features, and good support for future growth if the project needs more advanced constraints, indexing, or query patterns. MySQL would also be a reasonable relational database choice for this project, but PostgreSQL better matches the current implementation and provides more flexibility for future data-model evolution.
+
+Compared with MongoDB, PostgreSQL is a better fit because the data is relational: subscriptions reference repositories, unique constraints prevent duplicates, and confirmation/unsubscribe tokens need consistent lookup and state updates.
 
 ## Consequences
 

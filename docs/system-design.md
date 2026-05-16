@@ -74,7 +74,9 @@ Outgoing traffic mainly consists of GitHub API requests and email notifications.
 
 ## High-Level Architecture
 
-![Architecture Diagram](./system-design-diagram.png)
+![Architecture Diagram](./system-design-diagram.svg)
+
+The background scanner depends on the database, GitHub API integration, and email service. It reads active repositories and subscribers from PostgreSQL, checks GitHub for the latest release, sends release notifications through the email service, and then updates the repository `last_seen_tag`.
 
 ### Architecture Style
 
@@ -280,7 +282,7 @@ Release Scanner
   +--> GitHub API: fetch latest release tag
   +--> compare latestTag with last_seen_tag
   +--> PostgreSQL: load active subscribers
-  +--> SMTP: send release notification emails
+  +--> Email Service / SMTP: send release notification emails
   +--> PostgreSQL: update last_seen_tag
 ```
 
