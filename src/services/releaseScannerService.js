@@ -5,6 +5,7 @@ import {
     updateLastSeenTag
 } from '../repositories/trackedRepositoryRepository.js';
 import { findActiveSubscribersByRepositoryId } from '../repositories/subscriptionRepository.js';
+import { logger } from '../utils/logger.js';
 
 export async function scanForNewReleases() {
     const repositories = await findRepositoriesWithActiveSubscriptions();
@@ -35,6 +36,9 @@ async function scanRepositoryForNewRelease(repository) {
 
         await updateLastSeenTag(repository.id, latestTag);
     } catch (error) {
-        console.error(`Scanner error for ${repository.full_name}:`, error.message);
+        logger.error('Scanner failed for repository', {
+            repository: repository.full_name,
+            error
+        });
     }
 }
