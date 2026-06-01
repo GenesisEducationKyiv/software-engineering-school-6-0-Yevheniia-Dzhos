@@ -32,12 +32,32 @@ describe('subscriptionService', () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: 1 }] })
       .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
 
     await subscriptionService.createSubscription({ email: 'User@Test.com', repo: 'golang/go' });
 
     expect(githubService.ensureRepositoryExists).toHaveBeenCalledWith('golang/go');
     expect(emailService.sendConfirmationEmail).toHaveBeenCalledWith('user@test.com', 'confirm-token-12345', 'golang/go');
+  });
+
+  it('reactivates an unsubscribed subscription and sends a new confirmation email', async () => {
+    githubService.fetchLatestReleaseTag.mockResolvedValue('v1.0.0');
+    tokens.generateToken.mockReturnValueOnce('new-confirm-token').mockReturnValueOnce('new-unsubscribe-token');
+    query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: 7 }] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    await subscriptionService.createSubscription({ email: 'User@Test.com', repo: 'golang/go' });
+
+    expect(query).toHaveBeenLastCalledWith(
+      expect.stringContaining('UPDATE subscriptions'),
+      ['new-confirm-token', 'new-unsubscribe-token', 7]
+    );
+    expect(emailService.sendConfirmationEmail).toHaveBeenCalledWith('user@test.com', 'new-confirm-token', 'golang/go');
   });
 
   it('lists subscriptions', async () => {
