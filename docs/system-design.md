@@ -21,6 +21,7 @@ The system must support:
 - sending confirmation emails;
 - confirming subscriptions through a confirmation token;
 - unsubscribing through an unsubscribe token;
+- re-subscribing after unsubscribe by reactivating the existing subscription and requiring email confirmation again;
 - listing subscriptions by email;
 - periodically scanning GitHub repositories for the latest release;
 - sending release notification emails when a new release tag appears;
@@ -76,6 +77,8 @@ Outgoing traffic mainly consists of GitHub API requests and email notifications.
 
 ![Architecture Diagram](./system-design-diagram.svg)
 
+Diagram source: [system-design-diagram.mmd](./system-design-diagram.mmd).
+
 The background scanner depends on the database, GitHub API integration, and email service. It reads active repositories and subscribers from PostgreSQL, checks GitHub for the latest release, sends release notifications through the email service, and then updates the repository `last_seen_tag`.
 
 ### Architecture Style
@@ -128,6 +131,7 @@ The subscription service contains the core business logic:
 - prevents duplicate active subscriptions for the same email and repository;
 - generates confirmation and unsubscribe tokens;
 - stores the subscription as unconfirmed;
+- reactivates an unsubscribed subscription with new confirmation and unsubscribe tokens when the same email subscribes to the same repository again;
 - sends the confirmation email;
 - confirms subscriptions by token;
 - marks subscriptions as unsubscribed by token;
@@ -303,6 +307,30 @@ Subscription Service
 Response: 200 Unsubscribed successfully
 ```
 
+### 6.5 Re-subscription Flow
+
+```text
+User
+  |
+  | POST /api/subscribe { email, repo }
+  v
+Subscription Service
+  |
+  +--> validate email and repository
+  +--> PostgreSQL: find repository
+  +--> PostgreSQL: check for an active subscription
+  +--> if active subscription exists: return 409
+  +--> PostgreSQL: check for an unsubscribed subscription
+  +--> if unsubscribed subscription exists:
+       +--> generate new confirm and unsubscribe tokens
+       +--> set confirmed = FALSE
+       +--> clear confirmed_at and unsubscribed_at
+       +--> send a new confirmation email
+  |
+  v
+Response: 200 Confirmation email sent
+```
+
 ---
 
 ## 7. Data Consistency and Idempotency
@@ -312,7 +340,8 @@ Response: 200 Unsubscribed successfully
 The system prevents duplicates at two levels:
 
 - application logic checks whether the email is already subscribed to the repository;
-- database constraint `UNIQUE(email, repository_id)` prevents duplicate rows even if concurrent requests happen.
+- database constraint `UNIQUE(email, repository_id)` prevents duplicate rows even if concurrent requests happen;
+- re-subscription reuses the existing unsubscribed row instead of inserting a duplicate row.
 
 ### 7.2 Confirmation Idempotency
 

@@ -49,6 +49,29 @@ export async function createSubscription({ email, repo }) {
   const confirmToken = generateToken();
   const unsubscribeToken = generateToken();
 
+  const unsubscribed = await query(
+    `SELECT * FROM subscriptions
+     WHERE email = $1 AND repository_id = $2 AND unsubscribed_at IS NOT NULL`,
+    [email, repositoryId]
+  );
+
+  if (unsubscribed.rows[0]) {
+    await query(
+      `UPDATE subscriptions
+       SET confirmed = FALSE,
+           confirm_token = $1,
+           unsubscribe_token = $2,
+           confirmed_at = NULL,
+           unsubscribed_at = NULL,
+           created_at = NOW()
+       WHERE id = $3`,
+      [confirmToken, unsubscribeToken, unsubscribed.rows[0].id]
+    );
+
+    await sendConfirmationEmail(email, confirmToken, repo);
+    return;
+  }
+
   await query(
     `INSERT INTO subscriptions (email, repository_id, confirm_token, unsubscribe_token)
      VALUES ($1, $2, $3, $4)`,
