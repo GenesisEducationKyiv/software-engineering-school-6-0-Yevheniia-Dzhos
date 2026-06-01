@@ -1,4 +1,4 @@
-import { sendEmail } from './emailClient.js';
+import { sendEmail } from '../clients/emailClient.js';
 import {
   confirmationEmailTemplate,
   releaseEmailTemplate
