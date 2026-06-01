@@ -6,12 +6,12 @@ vi.mock('../src/services/githubService.js', () => ({
   ensureRepositoryExists: vi.fn(),
   fetchLatestReleaseTag: vi.fn()
 }));
-vi.mock('../src/services/emailService.js', () => ({ sendConfirmationEmail: vi.fn() }));
+vi.mock('../src/services/notificationService.js', () => ({ sendSubscriptionConfirmation: vi.fn() }));
 vi.mock('../src/utils/tokens.js', () => ({ generateToken: vi.fn() }));
 
 const { query } = await import('../src/db/client.js');
 const githubService = await import('../src/services/githubService.js');
-const emailService = await import('../src/services/emailService.js');
+const notificationService = await import('../src/services/notificationService.js');
 const tokens = await import('../src/utils/tokens.js');
 const subscriptionService = await import('../src/services/subscriptionService.js');
 
@@ -38,7 +38,7 @@ describe('subscriptionService', () => {
     await subscriptionService.createSubscription({ email: 'User@Test.com', repo: 'golang/go' });
 
     expect(githubService.ensureRepositoryExists).toHaveBeenCalledWith('golang/go');
-    expect(emailService.sendConfirmationEmail).toHaveBeenCalledWith('user@test.com', 'confirm-token-12345', 'golang/go');
+    expect(notificationService.sendSubscriptionConfirmation).toHaveBeenCalledWith('user@test.com', 'confirm-token-12345', 'golang/go');
   });
 
   it('reactivates an unsubscribed subscription and sends a new confirmation email', async () => {
@@ -57,7 +57,7 @@ describe('subscriptionService', () => {
       expect.stringContaining('UPDATE subscriptions'),
       ['new-confirm-token', 'new-unsubscribe-token', 7]
     );
-    expect(emailService.sendConfirmationEmail).toHaveBeenCalledWith('user@test.com', 'new-confirm-token', 'golang/go');
+    expect(notificationService.sendSubscriptionConfirmation).toHaveBeenCalledWith('user@test.com', 'new-confirm-token', 'golang/go');
   });
 
   it('lists subscriptions', async () => {
