@@ -3,7 +3,7 @@ import {
   confirmSubscription,
   unsubscribe,
   listSubscriptions
-} from '../services/subscriptionService.js';
+} from './subscriptionService.js';
 
 export async function subscribe(req, res, next) {
   try {

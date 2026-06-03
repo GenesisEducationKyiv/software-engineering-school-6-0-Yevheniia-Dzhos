@@ -1,5 +1,5 @@
-import { AppError } from '../utils/errors.js';
-import { ensureRepositoryExists, fetchLatestReleaseTag } from './githubService.js';
+import { AppError } from '../../utils/errors.js';
+import { ensureRepositoryExists, fetchLatestReleaseTag } from '../../services/githubService.js';
 import {
   normalizeSubscriptionInput,
   validateSubscriptionInput,
@@ -8,11 +8,11 @@ import {
   validateToken
 } from './subscriptionInputService.js';
 import { createSubscriptionTokens } from './subscriptionTokenService.js';
-import { sendSubscriptionConfirmation } from './notificationService.js';
+import { sendSubscriptionConfirmation } from '../../services/notificationService.js';
 import {
   upsertTrackedRepository,
   findTrackedRepositoryByFullName
-} from '../repositories/trackedRepositoryRepository.js';
+} from '../../repositories/trackedRepositoryRepository.js';
 import {
   findActiveSubscription,
   createSubscriptionRecord,
@@ -20,7 +20,7 @@ import {
   confirmSubscriptionRecord,
   unsubscribeSubscriptionRecord,
   listSubscriptionsByEmail
-} from '../repositories/subscriptionRepository.js';
+} from './subscriptionRepository.js';
 
 export async function createSubscription(input) {
   const { email, repo } = normalizeSubscriptionInput(input);

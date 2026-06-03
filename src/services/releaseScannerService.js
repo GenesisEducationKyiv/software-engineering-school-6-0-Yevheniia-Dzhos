@@ -4,7 +4,7 @@ import {
     findRepositoriesWithActiveSubscriptions,
     updateLastSeenTag
 } from '../repositories/trackedRepositoryRepository.js';
-import { findActiveSubscribersByRepositoryId } from '../repositories/subscriptionRepository.js';
+import { listActiveSubscribersForRepository } from '../modules/subscriptions/index.js';
 import { logger } from '../utils/logger.js';
 
 export async function scanForNewReleases() {
@@ -23,7 +23,7 @@ async function scanRepositoryForNewRelease(repository) {
             return;
         }
 
-        const subscribers = await findActiveSubscribersByRepositoryId(repository.id);
+        const subscribers = await listActiveSubscribersForRepository(repository.id);
 
         for (const subscriber of subscribers) {
             await sendReleaseEmail(

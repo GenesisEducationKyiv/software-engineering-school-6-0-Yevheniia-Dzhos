@@ -10,14 +10,14 @@ vi.mock('../../src/repositories/trackedRepositoryRepository.js', () => ({
   findRepositoriesWithActiveSubscriptions: vi.fn(),
   updateLastSeenTag: vi.fn()
 }));
-vi.mock('../../src/repositories/subscriptionRepository.js', () => ({
-  findActiveSubscribersByRepositoryId: vi.fn()
+vi.mock('../../src/modules/subscriptions/index.js', () => ({
+  listActiveSubscribersForRepository: vi.fn()
 }));
 
 const githubService = await import('../../src/services/githubService.js');
 const emailService = await import('../../src/services/emailService.js');
 const trackedRepositoryRepository = await import('../../src/repositories/trackedRepositoryRepository.js');
-const subscriptionRepository = await import('../../src/repositories/subscriptionRepository.js');
+const subscriptionsModule = await import('../../src/modules/subscriptions/index.js');
 const { scanForNewReleases } = await import('../../src/services/releaseScannerService.js');
 
 describe('release scanner service', () => {
@@ -30,7 +30,7 @@ describe('release scanner service', () => {
       { id: 1, full_name: 'owner/repo', last_seen_tag: 'v1.0.0' }
     ]);
     githubService.fetchLatestReleaseTag.mockResolvedValue('v1.1.0');
-    subscriptionRepository.findActiveSubscribersByRepositoryId.mockResolvedValue([
+    subscriptionsModule.listActiveSubscribersForRepository.mockResolvedValue([
       { email: 'a@example.com', unsubscribe_token: 'unsubscribe-a' },
       { email: 'b@example.com', unsubscribe_token: 'unsubscribe-b' }
     ]);
@@ -54,7 +54,7 @@ describe('release scanner service', () => {
 
     await scanForNewReleases();
 
-    expect(subscriptionRepository.findActiveSubscribersByRepositoryId).not.toHaveBeenCalled();
+    expect(subscriptionsModule.listActiveSubscribersForRepository).not.toHaveBeenCalled();
     expect(emailService.sendReleaseEmail).not.toHaveBeenCalled();
     expect(trackedRepositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
   });

@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import swaggerUi from 'swagger-ui-express';
-import subscriptionRoutes from './routes/subscriptionRoutes.js';
+import { subscriptionRoutes } from './modules/subscriptions/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { metricsMiddleware } from './middleware/metricsMiddleware.js';
 import { requestLogger } from './middleware/requestLogger.js';

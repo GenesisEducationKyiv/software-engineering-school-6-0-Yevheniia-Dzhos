@@ -1,5 +1,5 @@
-import { AppError } from '../utils/errors.js';
-import { isValidEmail, isValidRepo, isValidToken } from '../utils/validators.js';
+import { AppError } from '../../utils/errors.js';
+import { isValidEmail, isValidRepo, isValidToken } from '../../utils/validators.js';
 
 export function normalizeSubscriptionInput({ email, repo }) {
     return {

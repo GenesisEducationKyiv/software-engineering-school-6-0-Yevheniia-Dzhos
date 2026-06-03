@@ -4,7 +4,7 @@ import {
     confirm,
     unsubscribeUser,
     getSubscriptions
-} from '../controllers/subscriptionController.js';
+} from './subscriptionController.js';
 
 const router = Router();
 

@@ -6,7 +6,7 @@ import {
   validateEmail,
   validateSubscriptionInput,
   validateToken
-} from '../../src/services/subscriptionInputService.js';
+} from '../../src/modules/subscriptions/subscriptionInputService.js';
 import { isValidEmail, isValidRepo, isValidToken } from '../../src/utils/validators.js';
 
 describe('subscription input validation', () => {

@@ -5,7 +5,7 @@ vi.mock('../../src/utils/tokens.js', () => ({
 }));
 
 const { generateToken } = await import('../../src/utils/tokens.js');
-const { createSubscriptionTokens } = await import('../../src/services/subscriptionTokenService.js');
+const { createSubscriptionTokens } = await import('../../src/modules/subscriptions/subscriptionTokenService.js');
 
 describe('subscription token service', () => {
   beforeEach(() => {
