@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../src/services/githubService.js', () => ({
   fetchLatestReleaseTag: vi.fn()
 }));
-vi.mock('../../src/services/emailService.js', () => ({
-  sendReleaseEmail: vi.fn()
+vi.mock('../../src/modules/notifications/index.js', () => ({
+  sendReleaseNotification: vi.fn()
 }));
 vi.mock('../../src/repositories/trackedRepositoryRepository.js', () => ({
   findRepositoriesWithActiveSubscriptions: vi.fn(),
@@ -15,7 +15,7 @@ vi.mock('../../src/modules/subscriptions/index.js', () => ({
 }));
 
 const githubService = await import('../../src/services/githubService.js');
-const emailService = await import('../../src/services/emailService.js');
+const notificationsModule = await import('../../src/modules/notifications/index.js');
 const trackedRepositoryRepository = await import('../../src/repositories/trackedRepositoryRepository.js');
 const subscriptionsModule = await import('../../src/modules/subscriptions/index.js');
 const { scanForNewReleases } = await import('../../src/services/releaseScannerService.js');
@@ -37,10 +37,10 @@ describe('release scanner service', () => {
 
     await scanForNewReleases();
 
-    expect(emailService.sendReleaseEmail).toHaveBeenCalledTimes(2);
-    expect(emailService.sendReleaseEmail)
+    expect(notificationsModule.sendReleaseNotification).toHaveBeenCalledTimes(2);
+    expect(notificationsModule.sendReleaseNotification)
       .toHaveBeenCalledWith('a@example.com', 'owner/repo', 'v1.1.0', 'unsubscribe-a');
-    expect(emailService.sendReleaseEmail)
+    expect(notificationsModule.sendReleaseNotification)
       .toHaveBeenCalledWith('b@example.com', 'owner/repo', 'v1.1.0', 'unsubscribe-b');
 
     expect(trackedRepositoryRepository.updateLastSeenTag).toHaveBeenCalledWith(1, 'v1.1.0');
@@ -55,7 +55,7 @@ describe('release scanner service', () => {
     await scanForNewReleases();
 
     expect(subscriptionsModule.listActiveSubscribersForRepository).not.toHaveBeenCalled();
-    expect(emailService.sendReleaseEmail).not.toHaveBeenCalled();
+    expect(notificationsModule.sendReleaseNotification).not.toHaveBeenCalled();
     expect(trackedRepositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
   });
 });

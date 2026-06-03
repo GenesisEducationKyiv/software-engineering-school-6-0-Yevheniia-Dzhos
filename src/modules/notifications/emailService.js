@@ -2,7 +2,7 @@ import { sendEmail } from './emailClient.js';
 import {
   confirmationEmailTemplate,
   releaseEmailTemplate
-} from '../templates/emailTemplates.js';
+} from './emailTemplates.js';
 
 export async function sendConfirmationEmail(email, token, repo) {
   await sendEmail({

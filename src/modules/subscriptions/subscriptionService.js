@@ -8,7 +8,7 @@ import {
   validateToken
 } from './subscriptionInputService.js';
 import { createSubscriptionTokens } from './subscriptionTokenService.js';
-import { sendSubscriptionConfirmation } from '../../services/notificationService.js';
+import { sendSubscriptionConfirmation } from '../notifications/index.js';
 import {
   upsertTrackedRepository,
   findTrackedRepositoryByFullName

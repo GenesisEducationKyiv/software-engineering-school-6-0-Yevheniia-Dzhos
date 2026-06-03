@@ -8,7 +8,7 @@ vi.mock('../../src/services/githubService.js', () => ({
 vi.mock('../../src/modules/subscriptions/subscriptionTokenService.js', () => ({
   createSubscriptionTokens: vi.fn()
 }));
-vi.mock('../../src/services/notificationService.js', () => ({
+vi.mock('../../src/modules/notifications/index.js', () => ({
   sendSubscriptionConfirmation: vi.fn()
 }));
 vi.mock('../../src/repositories/trackedRepositoryRepository.js', () => ({
@@ -26,7 +26,7 @@ vi.mock('../../src/modules/subscriptions/subscriptionRepository.js', () => ({
 
 const githubService = await import('../../src/services/githubService.js');
 const tokenService = await import('../../src/modules/subscriptions/subscriptionTokenService.js');
-const notificationService = await import('../../src/services/notificationService.js');
+const notificationService = await import('../../src/modules/notifications/index.js');
 const trackedRepositoryRepository = await import('../../src/repositories/trackedRepositoryRepository.js');
 const subscriptionRepository = await import('../../src/modules/subscriptions/subscriptionRepository.js');
 const subscriptionService = await import('../../src/modules/subscriptions/subscriptionService.js');

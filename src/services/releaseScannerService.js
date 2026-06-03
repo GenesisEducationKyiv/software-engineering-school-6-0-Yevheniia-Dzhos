@@ -1,5 +1,5 @@
 import { fetchLatestReleaseTag } from './githubService.js';
-import { sendReleaseEmail } from './emailService.js';
+import { sendReleaseNotification } from '../modules/notifications/index.js';
 import {
     findRepositoriesWithActiveSubscriptions,
     updateLastSeenTag
@@ -26,7 +26,7 @@ async function scanRepositoryForNewRelease(repository) {
         const subscribers = await listActiveSubscribersForRepository(repository.id);
 
         for (const subscriber of subscribers) {
-            await sendReleaseEmail(
+            await sendReleaseNotification(
                 subscriber.email,
                 repository.full_name,
                 latestTag,
