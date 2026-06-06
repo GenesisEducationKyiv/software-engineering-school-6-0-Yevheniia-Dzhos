@@ -1,4 +1,4 @@
-import { recordHttpRequest } from '../utils/metrics.js';
+import { recordHttpRequest } from './metrics.js';
 
 export function metricsMiddleware(req, res, next) {
   const startedAt = process.hrtime.bigint();

@@ -5,7 +5,7 @@ import {
     updateLastSeenTag
 } from './trackedRepositoryRepository.js';
 import { listActiveSubscribersForRepository } from '../subscriptions/index.js';
-import { logger } from '../../utils/logger.js';
+import { logger } from '../observability/index.js';
 
 export async function scanForNewReleases() {
     const repositories = await findRepositoriesWithActiveSubscriptions();

@@ -6,7 +6,7 @@ import {
   startReleaseScanner,
   scanForNewReleases
 } from './modules/releaseTracking/releaseScanner.js';
-import { logger } from './utils/logger.js';
+import { logger } from './modules/observability/index.js';
 
 const app = createApp();
 

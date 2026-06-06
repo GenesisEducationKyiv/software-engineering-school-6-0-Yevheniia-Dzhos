@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { logger } from '../utils/logger.js';
+import { logger } from './logger.js';
 
 export function requestLogger(req, res, next) {
   const startedAt = process.hrtime.bigint();

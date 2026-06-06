@@ -1,5 +1,9 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import { recordHttpRequest, renderMetrics, resetMetrics } from '../../src/utils/metrics.js';
+import {
+  recordHttpRequest,
+  renderMetrics,
+  resetMetrics
+} from '../../src/modules/observability/metrics.js';
 
 function createRequest(path, method = 'GET', routePath = path) {
   return {

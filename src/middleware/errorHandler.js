@@ -1,4 +1,4 @@
-import { logger } from '../utils/logger.js';
+import { logger } from '../modules/observability/index.js';
 
 export function errorHandler(err, req, res, _next) {
   const status = err.status || 500;
