@@ -1,11 +1,11 @@
 import { fetchLatestReleaseTag } from './githubService.js';
-import { sendReleaseNotification } from '../modules/notifications/index.js';
+import { sendReleaseNotification } from '../notifications/index.js';
 import {
     findRepositoriesWithActiveSubscriptions,
     updateLastSeenTag
-} from '../repositories/trackedRepositoryRepository.js';
-import { listActiveSubscribersForRepository } from '../modules/subscriptions/index.js';
-import { logger } from '../utils/logger.js';
+} from './trackedRepositoryRepository.js';
+import { listActiveSubscribersForRepository } from '../subscriptions/index.js';
+import { logger } from '../../utils/logger.js';
 
 export async function scanForNewReleases() {
     const repositories = await findRepositoriesWithActiveSubscriptions();

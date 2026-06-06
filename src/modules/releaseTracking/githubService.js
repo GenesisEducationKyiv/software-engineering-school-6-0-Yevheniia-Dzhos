@@ -1,5 +1,5 @@
-import { AppError } from '../utils/errors.js';
-import { githubGet } from '../clients/githubClient.js';
+import { AppError } from '../../utils/errors.js';
+import { githubGet } from './githubClient.js';
 
 export async function ensureRepositoryExists(repo) {
   const response = await githubGet(`/repos/${repo}`);

@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../src/services/githubService.js', () => ({
+vi.mock('../../src/modules/releaseTracking/githubService.js', () => ({
   fetchLatestReleaseTag: vi.fn()
 }));
 vi.mock('../../src/modules/notifications/index.js', () => ({
   sendReleaseNotification: vi.fn()
 }));
-vi.mock('../../src/repositories/trackedRepositoryRepository.js', () => ({
+vi.mock('../../src/modules/releaseTracking/trackedRepositoryRepository.js', () => ({
   findRepositoriesWithActiveSubscriptions: vi.fn(),
   updateLastSeenTag: vi.fn()
 }));
@@ -14,11 +14,15 @@ vi.mock('../../src/modules/subscriptions/index.js', () => ({
   listActiveSubscribersForRepository: vi.fn()
 }));
 
-const githubService = await import('../../src/services/githubService.js');
+const githubService = await import('../../src/modules/releaseTracking/githubService.js');
 const notificationsModule = await import('../../src/modules/notifications/index.js');
-const trackedRepositoryRepository = await import('../../src/repositories/trackedRepositoryRepository.js');
+const trackedRepositoryRepository = await import(
+  '../../src/modules/releaseTracking/trackedRepositoryRepository.js'
+);
 const subscriptionsModule = await import('../../src/modules/subscriptions/index.js');
-const { scanForNewReleases } = await import('../../src/services/releaseScannerService.js');
+const { scanForNewReleases } = await import(
+  '../../src/modules/releaseTracking/releaseScannerService.js'
+);
 
 describe('release scanner service', () => {
   beforeEach(() => {

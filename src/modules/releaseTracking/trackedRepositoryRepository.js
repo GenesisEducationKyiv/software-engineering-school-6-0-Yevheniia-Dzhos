@@ -1,4 +1,4 @@
-import { query } from '../db/client.js';
+import { query } from '../../db/client.js';
 
 export async function upsertTrackedRepository(repo, owner, name, latestTag) {
     await query(

@@ -1,5 +1,5 @@
-import { env } from '../config/env.js';
-import { AppError } from '../utils/errors.js';
+import { env } from '../../config/env.js';
+import { AppError } from '../../utils/errors.js';
 
 function createHeaders() {
     const headers = {

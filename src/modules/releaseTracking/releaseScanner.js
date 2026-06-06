@@ -1,5 +1,5 @@
-import { scanForNewReleases } from '../services/releaseScannerService.js';
-import { logger } from '../utils/logger.js';
+import { scanForNewReleases } from './releaseScannerService.js';
+import { logger } from '../../utils/logger.js';
 
 export { scanForNewReleases };
 

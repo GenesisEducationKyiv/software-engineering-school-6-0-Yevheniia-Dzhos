@@ -2,7 +2,10 @@ import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { pool } from './db/client.js';
 import { runMigrations } from './db/migrate.js';
-import { startReleaseScanner, scanForNewReleases } from './jobs/releaseScanner.js';
+import {
+  startReleaseScanner,
+  scanForNewReleases
+} from './modules/releaseTracking/releaseScanner.js';
 import { logger } from './utils/logger.js';
 
 const app = createApp();

@@ -1,5 +1,5 @@
 import { AppError } from '../../utils/errors.js';
-import { ensureRepositoryExists, fetchLatestReleaseTag } from '../../services/githubService.js';
+import { trackRepository } from '../releaseTracking/index.js';
 import {
   normalizeSubscriptionInput,
   validateSubscriptionInput,
@@ -9,10 +9,6 @@ import {
 } from './subscriptionInputService.js';
 import { createSubscriptionTokens } from './subscriptionTokenService.js';
 import { sendSubscriptionConfirmation } from '../notifications/index.js';
-import {
-  upsertTrackedRepository,
-  findTrackedRepositoryByFullName
-} from '../../repositories/trackedRepositoryRepository.js';
 import {
   findActiveSubscription,
   createSubscriptionRecord,
@@ -27,18 +23,7 @@ export async function createSubscription(input) {
 
   validateSubscriptionInput({ email, repo });
 
-  await ensureRepositoryExists(repo);
-
-  const [owner, name] = repo.split('/');
-  const latestTag = await fetchLatestReleaseTag(repo);
-
-  await upsertTrackedRepository(repo, owner, name, latestTag);
-
-  const repository = await findTrackedRepositoryByFullName(repo);
-
-  if (!repository) {
-    throw new AppError(500, 'Repository was not saved');
-  }
+  const repository = await trackRepository(repo);
 
   const existing = await findActiveSubscription(email, repository.id);
 
