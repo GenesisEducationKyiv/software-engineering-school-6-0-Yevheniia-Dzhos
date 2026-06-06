@@ -1,7 +1,6 @@
 import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { pool } from './db/client.js';
-import { runMigrations } from './db/migrate.js';
 import {
   startReleaseScanner,
   scanForNewReleases
@@ -12,7 +11,6 @@ const app = createApp();
 
 async function bootstrap() {
   try {
-    await runMigrations();
     await scanForNewReleases();
     startReleaseScanner(env.scanIntervalMs);
 

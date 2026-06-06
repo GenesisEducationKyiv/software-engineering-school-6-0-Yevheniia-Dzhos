@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
+    "migrate": "node src/db/runMigrations.js",
     "notification:dev": "node --watch services/notification-service/src/server.js",
     "notification:start": "node services/notification-service/src/server.js",
     "test": "node tests/run-tests.mjs all",

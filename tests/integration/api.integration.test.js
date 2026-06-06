@@ -111,6 +111,16 @@ describe('API integration endpoints', () => {
     expect(response.body).toEqual({ status: 'ok' });
   });
 
+  it('GET /health/live and /health/ready report application status', async () => {
+    const live = await request(app).get('/health/live');
+    const ready = await request(app).get('/health/ready');
+
+    expect(live.status).toBe(200);
+    expect(live.body).toEqual({ status: 'ok' });
+    expect(ready.status).toBe(200);
+    expect(ready.body).toEqual({ status: 'ready' });
+  });
+
   it('POST /api/subscribe validates bad input', async () => {
     const response = await request(app)
       .post('/api/subscribe')

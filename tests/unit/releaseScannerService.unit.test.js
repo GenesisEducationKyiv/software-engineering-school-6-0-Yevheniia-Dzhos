@@ -8,6 +8,7 @@ vi.mock('../../src/modules/notifications/index.js', () => ({
 }));
 vi.mock('../../src/modules/releaseTracking/trackedRepositoryRepository.js', () => ({
   findRepositoriesWithActiveSubscriptions: vi.fn(),
+  recordDiscoveredRelease: vi.fn(),
   updateLastSeenTag: vi.fn()
 }));
 vi.mock('../../src/modules/subscriptions/index.js', () => ({
@@ -47,6 +48,8 @@ describe('release scanner service', () => {
     expect(notificationsModule.sendReleaseNotification)
       .toHaveBeenCalledWith('b@example.com', 'owner/repo', 'v1.1.0', 'unsubscribe-b');
 
+    expect(trackedRepositoryRepository.recordDiscoveredRelease)
+      .toHaveBeenCalledWith(1, 'v1.1.0');
     expect(trackedRepositoryRepository.updateLastSeenTag).toHaveBeenCalledWith(1, 'v1.1.0');
   });
 
@@ -60,6 +63,7 @@ describe('release scanner service', () => {
 
     expect(subscriptionsModule.listActiveSubscribersForRepository).not.toHaveBeenCalled();
     expect(notificationsModule.sendReleaseNotification).not.toHaveBeenCalled();
+    expect(trackedRepositoryRepository.recordDiscoveredRelease).not.toHaveBeenCalled();
     expect(trackedRepositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
   });
 });

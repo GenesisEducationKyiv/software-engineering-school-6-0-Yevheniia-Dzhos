@@ -38,3 +38,12 @@ export async function updateLastSeenTag(repositoryId, latestTag) {
         [latestTag, repositoryId]
     );
 }
+
+export async function recordDiscoveredRelease(repositoryId, tag) {
+    await query(
+        `INSERT INTO releases (repository_id, tag)
+     VALUES ($1, $2)
+     ON CONFLICT (repository_id, tag) DO NOTHING`,
+        [repositoryId, tag]
+    );
+}

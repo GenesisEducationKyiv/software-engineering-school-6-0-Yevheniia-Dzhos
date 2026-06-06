@@ -40,5 +40,6 @@ export const env = {
   githubToken: getOptionalEnv('GITHUB_TOKEN', ''),
   githubApiUrl: getOptionalEnv('GITHUB_API_URL', 'https://api.github.com'),
 
-  scanIntervalMs: getNumberEnv('SCAN_INTERVAL_MS', 300000)
+  scanIntervalMs: getNumberEnv('SCAN_INTERVAL_MS', 300000),
+  scanChunkSize: getNumberEnv('SCAN_CHUNK_SIZE', 5)
 };
