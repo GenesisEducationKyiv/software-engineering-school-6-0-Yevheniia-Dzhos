@@ -29,32 +29,16 @@ function getNumberEnv(name, defaultValue) {
   return parsed;
 }
 
-function getBooleanEnv(name, defaultValue = false) {
-  const value = process.env[name];
-
-  if (!value) return defaultValue;
-
-  return String(value).toLowerCase() === 'true';
-}
-
 export const env = {
   port: getNumberEnv('PORT', 3000),
   databaseUrl: getRequiredEnv('DATABASE_URL'),
-  appBaseUrl: getOptionalEnv('APP_BASE_URL', 'http://localhost:3000'),
+  notificationServiceUrl: getOptionalEnv(
+    'NOTIFICATION_SERVICE_URL',
+    'http://localhost:3002'
+  ),
 
   githubToken: getOptionalEnv('GITHUB_TOKEN', ''),
   githubApiUrl: getOptionalEnv('GITHUB_API_URL', 'https://api.github.com'),
 
-  scanIntervalMs: getNumberEnv('SCAN_INTERVAL_MS', 300000),
-
-  smtpHost: getRequiredEnv('SMTP_HOST'),
-  smtpPort: getNumberEnv('SMTP_PORT', 1025),
-  smtpSecure: getBooleanEnv('SMTP_SECURE', false),
-  smtpUser: getOptionalEnv('SMTP_USER', ''),
-  smtpPass: getOptionalEnv('SMTP_PASS', ''),
-
-  mailFrom: getOptionalEnv(
-    'MAIL_FROM',
-    'GitHub Release Notifier <no-reply@example.com>'
-  )
+  scanIntervalMs: getNumberEnv('SCAN_INTERVAL_MS', 300000)
 };

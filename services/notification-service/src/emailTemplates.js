@@ -1,4 +1,4 @@
-import { env } from '../../config/env.js';
+import { env } from './config.js';
 
 export function confirmationEmailTemplate(token, repo) {
     const confirmUrl = `${env.appBaseUrl}/api/confirm/${token}`;

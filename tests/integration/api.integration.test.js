@@ -12,6 +12,7 @@ let app;
 let pool;
 let query;
 let githubServer;
+let notificationServer;
 
 function createGithubStub() {
   return http.createServer((req, res) => {
@@ -75,6 +76,13 @@ describe('API integration endpoints', () => {
     const githubPort = await listen(githubServer);
     process.env.GITHUB_API_URL = `http://127.0.0.1:${githubPort}`;
 
+    const notificationAppModule = await import(
+      '../../services/notification-service/src/app.js'
+    );
+    notificationServer = http.createServer(notificationAppModule.createApp());
+    const notificationPort = await listen(notificationServer);
+    process.env.NOTIFICATION_SERVICE_URL = `http://127.0.0.1:${notificationPort}`;
+
     const appModule = await import('../../src/app.js');
     const dbModule = await import('../../src/db/client.js');
     const migrationModule = await import('../../src/db/migrate.js');
@@ -93,6 +101,7 @@ describe('API integration endpoints', () => {
   afterAll(async () => {
     await pool?.end();
     await close(githubServer);
+    await close(notificationServer);
   });
 
   it('GET /health returns service status', async () => {

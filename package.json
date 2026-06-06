@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
+    "notification:dev": "node --watch services/notification-service/src/server.js",
+    "notification:start": "node services/notification-service/src/server.js",
     "test": "node tests/run-tests.mjs all",
     "test:unit": "node tests/run-tests.mjs unit",
     "test:integration": "node tests/run-tests.mjs integration",
