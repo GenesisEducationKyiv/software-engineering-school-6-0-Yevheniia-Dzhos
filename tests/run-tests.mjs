@@ -83,7 +83,11 @@ async function waitForPostgres() {
 
 async function runUnit() {
   ensureRootDependencies();
-  run('npx', ['vitest', 'run', '--config', 'tests/vitest.unit.config.mjs']);
+  run('npx', ['vitest', 'run', '--config', 'tests/vitest.unit.config.mjs'], {
+    env: {
+      DATABASE_URL: 'postgres://postgres:postgres@localhost:5432/releases_test'
+    }
+  });
 }
 
 async function runIntegration() {
