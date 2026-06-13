@@ -27,7 +27,10 @@ export async function githubGet(path) {
 
     if (
         response.status === 429 ||
-        response.headers.get('x-ratelimit-remaining') === '0'
+        (
+            response.status === 403 &&
+            response.headers.get('x-ratelimit-remaining') === '0'
+        )
     ) {
         throw new AppError(429, 'GitHub API rate limit exceeded');
     }

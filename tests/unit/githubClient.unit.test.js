@@ -41,5 +41,28 @@ describe('GitHub client', () => {
       message: 'GitHub API unavailable'
     });
   });
-});
 
+  it('preserves a 404 response when the final allowed request completes', async () => {
+    const response = {
+      status: 404,
+      headers: new Headers({ 'x-ratelimit-remaining': '0' })
+    };
+    global.fetch = vi.fn().mockResolvedValue(response);
+    const { githubGet } = await import('../../src/modules/releaseTracking/githubClient.js');
+
+    await expect(githubGet('/repos/owner/missing')).resolves.toBe(response);
+  });
+
+  it('returns a 429 application error for an exhausted rate limit response', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      status: 403,
+      headers: new Headers({ 'x-ratelimit-remaining': '0' })
+    });
+    const { githubGet } = await import('../../src/modules/releaseTracking/githubClient.js');
+
+    await expect(githubGet('/repos/owner/repo')).rejects.toMatchObject({
+      status: 429,
+      message: 'GitHub API rate limit exceeded'
+    });
+  });
+});

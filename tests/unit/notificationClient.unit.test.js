@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const originalFetch = global.fetch;
 const originalTimeout = process.env.NOTIFICATION_REQUEST_TIMEOUT_MS;
+const originalServiceUrl = process.env.NOTIFICATION_SERVICE_URL;
 
 describe('notification client', () => {
   afterEach(() => {
@@ -10,6 +11,11 @@ describe('notification client', () => {
       delete process.env.NOTIFICATION_REQUEST_TIMEOUT_MS;
     } else {
       process.env.NOTIFICATION_REQUEST_TIMEOUT_MS = originalTimeout;
+    }
+    if (originalServiceUrl === undefined) {
+      delete process.env.NOTIFICATION_SERVICE_URL;
+    } else {
+      process.env.NOTIFICATION_SERVICE_URL = originalServiceUrl;
     }
     vi.resetModules();
   });
@@ -70,5 +76,19 @@ describe('notification client', () => {
       status: 502,
       message: 'Notification service unavailable'
     });
+  });
+
+  it('handles a notification service URL with a trailing slash', async () => {
+    process.env.NOTIFICATION_SERVICE_URL = 'http://localhost:3002/';
+    global.fetch = vi.fn().mockResolvedValue({ ok: true });
+    const { sendSubscriptionConfirmation } = await import(
+      '../../src/modules/notifications/index.js'
+    );
+
+    await sendSubscriptionConfirmation('user@example.com', 'token-123', 'owner/repo');
+
+    expect(global.fetch.mock.calls[0][0].toString()).toBe(
+      'http://localhost:3002/notifications/subscription-confirmation'
+    );
   });
 });

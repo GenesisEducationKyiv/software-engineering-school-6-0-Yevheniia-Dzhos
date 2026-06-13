@@ -21,6 +21,7 @@ const { trackRepository } = await import(
 describe('tracked repository service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    githubService.ensureRepositoryExists.mockResolvedValue(undefined);
   });
 
   it('validates, stores and returns a tracked repository', async () => {

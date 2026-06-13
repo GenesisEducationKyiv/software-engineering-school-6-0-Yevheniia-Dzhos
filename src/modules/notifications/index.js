@@ -5,7 +5,8 @@ async function sendNotification(path, payload) {
   let response;
 
   try {
-    response = await fetch(`${env.notificationServiceUrl}${path}`, {
+    const url = new URL(path, `${env.notificationServiceUrl.replace(/\/+$/, '')}/`);
+    response = await fetch(url.toString(), {
       method: 'POST',
       headers: {
         'content-type': 'application/json'
