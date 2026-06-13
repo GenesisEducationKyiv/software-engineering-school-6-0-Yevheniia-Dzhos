@@ -9,10 +9,22 @@ services:
         condition: service_completed_successfully
       notification-service:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
       logstash:
         condition: service_healthy
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@db:5432/releases}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
+      NOTIFICATION_EXCHANGE: ${NOTIFICATION_EXCHANGE:-notifications}
+      NOTIFICATION_QUEUE: ${NOTIFICATION_QUEUE:-notifications}
+      NOTIFICATION_RETRY_EXCHANGE: ${NOTIFICATION_RETRY_EXCHANGE:-notifications.retry}
+      NOTIFICATION_RETRY_QUEUE: ${NOTIFICATION_RETRY_QUEUE:-notifications.retry}
+      NOTIFICATION_DLQ_EXCHANGE: ${NOTIFICATION_DLQ_EXCHANGE:-notifications.dead-letter}
+      NOTIFICATION_DLQ: ${NOTIFICATION_DLQ:-notifications.dead-letter}
+      NOTIFICATION_RETRY_TTL_MS: ${NOTIFICATION_RETRY_TTL_MS:-5000}
+      NOTIFICATION_MAX_ATTEMPTS: ${NOTIFICATION_MAX_ATTEMPTS:-3}
+      BROKER_RECONNECT_DELAY_MS: ${BROKER_RECONNECT_DELAY_MS:-5000}
       NOTIFICATION_SERVICE_URL: ${NOTIFICATION_SERVICE_URL:-http://notification-service:3002}
       NOTIFICATION_REQUEST_TIMEOUT_MS: ${NOTIFICATION_REQUEST_TIMEOUT_MS:-10000}
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -54,7 +66,22 @@ services:
     depends_on:
       mailhog:
         condition: service_started
+      migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
     environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@db:5432/releases}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
+      NOTIFICATION_EXCHANGE: ${NOTIFICATION_EXCHANGE:-notifications}
+      NOTIFICATION_QUEUE: ${NOTIFICATION_QUEUE:-notifications}
+      NOTIFICATION_RETRY_EXCHANGE: ${NOTIFICATION_RETRY_EXCHANGE:-notifications.retry}
+      NOTIFICATION_RETRY_QUEUE: ${NOTIFICATION_RETRY_QUEUE:-notifications.retry}
+      NOTIFICATION_DLQ_EXCHANGE: ${NOTIFICATION_DLQ_EXCHANGE:-notifications.dead-letter}
+      NOTIFICATION_DLQ: ${NOTIFICATION_DLQ:-notifications.dead-letter}
+      NOTIFICATION_RETRY_TTL_MS: ${NOTIFICATION_RETRY_TTL_MS:-5000}
+      NOTIFICATION_MAX_ATTEMPTS: ${NOTIFICATION_MAX_ATTEMPTS:-3}
+      BROKER_RECONNECT_DELAY_MS: ${BROKER_RECONNECT_DELAY_MS:-5000}
       NOTIFICATION_SERVICE_PORT: ${NOTIFICATION_SERVICE_PORT:-3002}
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
       SMTP_HOST: ${SMTP_HOST:-mailhog}
@@ -99,6 +126,21 @@ services:
     ports:
       - "1025:1025"
       - "8025:8025"
+
+  rabbitmq:
+    image: rabbitmq:4.1-management-alpine
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
@@ -188,3 +230,4 @@ volumes:
   elasticsearch_data:
   prometheus_data:
   grafana_data:
+  rabbitmq_data:

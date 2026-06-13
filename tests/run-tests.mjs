@@ -104,6 +104,26 @@ async function runUnit() {
   });
 }
 
+async function waitForRabbitMq() {
+  const amqp = await import('amqplib');
+  const url = 'amqp://guest:guest@localhost:55672';
+  const deadline = Date.now() + 30000;
+  let lastError;
+
+  while (Date.now() < deadline) {
+    try {
+      const connection = await amqp.default.connect(url);
+      await connection.close();
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+
+  throw lastError || new Error('Timed out waiting for RabbitMQ');
+}
+
 async function runIntegration() {
   ensureRootDependencies();
 
@@ -117,7 +137,7 @@ async function runIntegration() {
 
   try {
     run('docker', [...composeArgs, 'up', '-d']);
-    await waitForPostgres();
+    await Promise.all([waitForPostgres(), waitForRabbitMq()]);
     run(process.execPath, [
       rootDependencyPath('vitest/vitest.mjs'),
       'run',
@@ -126,6 +146,7 @@ async function runIntegration() {
     ], {
       env: {
         DATABASE_URL: 'postgres://postgres:postgres@localhost:55432/releases_test',
+        RABBITMQ_URL: 'amqp://guest:guest@localhost:55672',
         SMTP_HOST: 'localhost',
         SMTP_PORT: '11025',
         APP_BASE_URL: 'http://localhost:3000'

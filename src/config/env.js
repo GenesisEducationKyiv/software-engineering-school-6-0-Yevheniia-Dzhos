@@ -5,12 +5,14 @@ import {
   getPositiveIntegerEnv,
   getRequiredEnv
 } from './envParsers.js';
+import { getMessagingEnv } from './messagingEnv.js';
 
 dotenv.config();
 
 export const env = {
   port: getPortEnv('PORT', 3000),
   databaseUrl: getRequiredEnv('DATABASE_URL'),
+  ...getMessagingEnv(),
   notificationServiceUrl: getOptionalEnv(
     'NOTIFICATION_SERVICE_URL',
     'http://localhost:3002'

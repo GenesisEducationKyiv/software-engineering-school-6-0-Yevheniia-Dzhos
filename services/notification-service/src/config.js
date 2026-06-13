@@ -5,11 +5,14 @@ import {
   getPortEnv,
   getRequiredEnv
 } from '../../../src/config/envParsers.js';
+import { getMessagingEnv } from '../../../src/config/messagingEnv.js';
 
 dotenv.config();
 
 export const env = {
   port: getPortEnv('NOTIFICATION_SERVICE_PORT', 3002),
+  databaseUrl: getRequiredEnv('DATABASE_URL'),
+  ...getMessagingEnv(),
   appBaseUrl: getOptionalEnv('APP_BASE_URL', 'http://localhost:3000'),
   smtpHost: getRequiredEnv('SMTP_HOST'),
   smtpPort: getPortEnv('SMTP_PORT', 1025),
