@@ -3,6 +3,7 @@ import {
   sendReleaseNotification,
   sendSubscriptionConfirmation
 } from './notificationService.js';
+import { verifyEmailConnection } from './emailClient.js';
 
 function requireFields(body, fields) {
   return fields.every((field) => {
@@ -17,6 +18,15 @@ export function createApp() {
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
+  });
+
+  app.get('/health/ready', async (_req, res) => {
+    try {
+      await verifyEmailConnection();
+      res.json({ status: 'ready' });
+    } catch {
+      res.status(503).json({ status: 'not ready' });
+    }
   });
 
   app.post('/notifications/subscription-confirmation', async (req, res, next) => {

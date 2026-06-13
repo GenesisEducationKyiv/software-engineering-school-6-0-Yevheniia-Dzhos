@@ -16,3 +16,7 @@ export async function sendEmail({ to, subject, html }) {
         html
     });
 }
+
+export async function verifyEmailConnection() {
+    await transporter.verify();
+}

@@ -481,6 +481,7 @@ Email confirmation is required to prevent users from subscribing other people’
 | Email sending fails during subscribe | Subscription may be created but email may fail | Store email job and retry asynchronously |
 | Some emails fail during scan | Scanner logs failed recipients and marks the release handled to prevent duplicate delivery to successful recipients | Queue notification jobs with per-recipient retry and dead-letter queue |
 | All emails fail during scan | Scanner leaves the release pending for the next scan | Queue notification jobs with retry and dead-letter queue |
+| SMTP is unavailable | Notification service readiness returns `503` and the app waits for a healthy notification service in Docker Compose | Add SMTP failover and delivery queue |
 | App restarts | API starts listening before the initial background scan begins | Separate scanner worker and distributed scheduler lock |
 | Multiple app instances | Each instance may start scanner | Use leader election or separate worker process |
 

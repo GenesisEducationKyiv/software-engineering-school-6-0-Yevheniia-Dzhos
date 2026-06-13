@@ -5,10 +5,15 @@ vi.mock('../../services/notification-service/src/notificationService.js', () => 
   sendSubscriptionConfirmation: vi.fn(),
   sendReleaseNotification: vi.fn()
 }));
+vi.mock('../../services/notification-service/src/emailClient.js', () => ({
+  verifyEmailConnection: vi.fn()
+}));
+
 
 const notificationService = await import(
   '../../services/notification-service/src/notificationService.js'
 );
+const emailClient = await import('../../services/notification-service/src/emailClient.js');
 const { createApp } = await import('../../services/notification-service/src/app.js');
 
 describe('notification service app', () => {
@@ -37,5 +42,22 @@ describe('notification service app', () => {
 
     expect(response.status).toBe(400);
     expect(notificationService.sendReleaseNotification).not.toHaveBeenCalled();
+  });
+
+  it('reports readiness when SMTP is available', async () => {
+    const response = await request(createApp()).get('/health/ready');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ status: 'ready' });
+    expect(emailClient.verifyEmailConnection).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports not ready when SMTP is unavailable', async () => {
+    emailClient.verifyEmailConnection.mockRejectedValue(new Error('SMTP unavailable'));
+
+    const response = await request(createApp()).get('/health/ready');
+
+    expect(response.status).toBe(503);
+    expect(response.body).toEqual({ status: 'not ready' });
   });
 });

@@ -64,7 +64,7 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       MAIL_FROM: ${MAIL_FROM:-GitHub Release Notifier <no-reply@example.com>}
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3002/health >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3002/health/ready >/dev/null 2>&1"]
       interval: 10s
       timeout: 5s
       retries: 10
