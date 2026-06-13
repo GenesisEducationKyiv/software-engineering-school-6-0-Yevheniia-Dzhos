@@ -13,6 +13,7 @@
     "test:unit": "node tests/run-tests.mjs unit",
     "test:integration": "node tests/run-tests.mjs integration",
     "test:e2e": "node tests/run-tests.mjs e2e",
+    "test:e2e:install": "node tests/run-tests.mjs e2e:install",
     "test:watch": "vitest --config tests/vitest.unit.config.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"

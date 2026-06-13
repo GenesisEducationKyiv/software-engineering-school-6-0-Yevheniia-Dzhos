@@ -28,11 +28,19 @@ Docker Desktop or Docker Engine must be running before this command starts.
 
 ## Run E2E Tests
 
+Install Chromium once before the first local E2E run:
+
+```bash
+node tests/run-tests.mjs e2e:install
+```
+
+Then run the tests without an implicit browser download:
+
 ```bash
 node tests/run-tests.mjs e2e
 ```
 
-This command installs Playwright dependencies if needed, ensures Chromium is available, starts the local E2E server, and runs the browser tests.
+The E2E command installs missing Node dependencies if needed, starts the local E2E server, and runs the browser tests. Browser installation is a separate command so normal test runs never unexpectedly download a large binary.
 
 ## CI
 

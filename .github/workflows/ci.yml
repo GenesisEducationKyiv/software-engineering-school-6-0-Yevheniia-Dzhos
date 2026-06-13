@@ -43,4 +43,5 @@ jobs:
         with:
           node-version: 20
       - run: npm ci
+      - run: npm run test:e2e:install
       - run: npm run test:e2e

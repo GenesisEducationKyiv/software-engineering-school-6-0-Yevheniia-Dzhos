@@ -33,6 +33,11 @@ app.post('/api/subscribe', (req, res) => {
 
 const port = Number(process.env.E2E_PORT || 3310);
 
-app.listen(port, '127.0.0.1', () => {
+const server = app.listen(port, '127.0.0.1', () => {
   console.log(`E2E server running on http://127.0.0.1:${port}`);
+});
+
+app.post('/shutdown', (_req, res) => {
+  res.json({ status: 'shutting down' });
+  server.close();
 });
