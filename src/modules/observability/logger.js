@@ -21,35 +21,39 @@ function serializeError(error) {
   };
 }
 
-function writeLog(level, message, context = {}) {
-  if (levels[level] < getMinimumLevel()) return;
+export function createLogger(service) {
+  function writeLog(level, message, context = {}) {
+    if (levels[level] < getMinimumLevel()) return;
 
-  const { error, ...fields } = context;
-  const entry = {
-    timestamp: new Date().toISOString(),
-    level,
-    service: 'github-release-notifier',
-    message,
-    ...fields
+    const { error, ...fields } = context;
+    const entry = {
+      timestamp: new Date().toISOString(),
+      level,
+      service,
+      message,
+      ...fields
+    };
+
+    if (error) {
+      entry.error = serializeError(error);
+    }
+
+    const output = JSON.stringify(entry);
+
+    if (level === 'error') {
+      process.stderr.write(`${output}\n`);
+      return;
+    }
+
+    process.stdout.write(`${output}\n`);
+  }
+
+  return {
+    debug: (message, context) => writeLog('debug', message, context),
+    info: (message, context) => writeLog('info', message, context),
+    warn: (message, context) => writeLog('warn', message, context),
+    error: (message, context) => writeLog('error', message, context)
   };
-
-  if (error) {
-    entry.error = serializeError(error);
-  }
-
-  const output = JSON.stringify(entry);
-
-  if (level === 'error') {
-    process.stderr.write(`${output}\n`);
-    return;
-  }
-
-  process.stdout.write(`${output}\n`);
 }
 
-export const logger = {
-  debug: (message, context) => writeLog('debug', message, context),
-  info: (message, context) => writeLog('info', message, context),
-  warn: (message, context) => writeLog('warn', message, context),
-  error: (message, context) => writeLog('error', message, context)
-};
+export const logger = createLogger('github-release-notifier');

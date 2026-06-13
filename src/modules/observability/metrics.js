@@ -1,8 +1,4 @@
 const durationBuckets = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10];
-const requestCounts = new Map();
-const errorCounts = new Map();
-const durationHistograms = new Map();
-
 function escapeLabelValue(value) {
   return String(value).replaceAll('\\', '\\\\').replaceAll('\n', '\\n').replaceAll('"', '\\"');
 }
@@ -36,7 +32,7 @@ function increment(map, labels, amount = 1) {
   map.set(key, { labels, value: amount });
 }
 
-function observeDuration(labels, durationSeconds) {
+function observeDuration(durationHistograms, labels, durationSeconds) {
   const key = labelsKey(labels);
   const current = durationHistograms.get(key) || {
     labels,
@@ -93,7 +89,7 @@ function counterLines(name, values) {
   return [...values.values()].map(({ labels, value }) => `${name}${formatLabels(labels)} ${value}`);
 }
 
-function histogramLines(name) {
+function histogramLines(name, durationHistograms) {
   const lines = [];
 
   for (const histogram of durationHistograms.values()) {
@@ -109,44 +105,54 @@ function histogramLines(name) {
   return lines;
 }
 
-export function recordHttpRequest(req, res, durationSeconds) {
-  if (req.path === '/metrics') return;
+export function createMetrics() {
+  const requestCounts = new Map();
+  const errorCounts = new Map();
+  const durationHistograms = new Map();
 
-  const statusCode = res.statusCode;
-  const baseLabels = {
-    method: req.method,
-    route: getRoutePath(req)
-  };
-  const countLabels = {
-    ...baseLabels,
-    status_code: statusCode,
-    status_class: getStatusClass(statusCode)
-  };
+  function recordHttpRequest(req, res, durationSeconds) {
+    if (req.path === '/metrics') return;
 
-  increment(requestCounts, countLabels);
-  observeDuration(baseLabels, durationSeconds);
+    const statusCode = res.statusCode;
+    const baseLabels = {
+      method: req.method,
+      route: getRoutePath(req)
+    };
+    const countLabels = {
+      ...baseLabels,
+      status_code: statusCode,
+      status_class: getStatusClass(statusCode)
+    };
 
-  if (statusCode >= 400) {
-    increment(errorCounts, countLabels);
+    increment(requestCounts, countLabels);
+    observeDuration(durationHistograms, baseLabels, durationSeconds);
+
+    if (statusCode >= 400) {
+      increment(errorCounts, countLabels);
+    }
   }
+
+  function renderMetrics() {
+    return [
+      ...metricHelp('http_requests_total', 'Total HTTP requests processed by the application.', 'counter'),
+      ...counterLines('http_requests_total', requestCounts),
+      '',
+      ...metricHelp('http_request_errors_total', 'Total HTTP requests completed with 4xx or 5xx status codes.', 'counter'),
+      ...counterLines('http_request_errors_total', errorCounts),
+      '',
+      ...metricHelp('http_request_duration_seconds', 'HTTP request duration in seconds.', 'histogram'),
+      ...histogramLines('http_request_duration_seconds', durationHistograms),
+      ''
+    ].join('\n');
+  }
+
+  function resetMetrics() {
+    requestCounts.clear();
+    errorCounts.clear();
+    durationHistograms.clear();
+  }
+
+  return { recordHttpRequest, renderMetrics, resetMetrics };
 }
 
-export function renderMetrics() {
-  return [
-    ...metricHelp('http_requests_total', 'Total HTTP requests processed by the application.', 'counter'),
-    ...counterLines('http_requests_total', requestCounts),
-    '',
-    ...metricHelp('http_request_errors_total', 'Total HTTP requests completed with 4xx or 5xx status codes.', 'counter'),
-    ...counterLines('http_request_errors_total', errorCounts),
-    '',
-    ...metricHelp('http_request_duration_seconds', 'HTTP request duration in seconds.', 'histogram'),
-    ...histogramLines('http_request_duration_seconds'),
-    ''
-  ].join('\n');
-}
-
-export function resetMetrics() {
-  requestCounts.clear();
-  errorCounts.clear();
-  durationHistograms.clear();
-}
+export const { recordHttpRequest, renderMetrics, resetMetrics } = createMetrics();

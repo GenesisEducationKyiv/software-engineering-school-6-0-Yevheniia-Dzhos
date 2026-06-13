@@ -1,9 +1,9 @@
 # Structured Logging
 
-The application writes JSON logs to stdout/stderr. Docker Compose sends the app
-container logs through the GELF logging driver to Logstash, Logstash parses the
-JSON payload, and Elasticsearch stores the records for search and aggregation.
-Kibana is available for visualization.
+The application and notification service write JSON logs to stdout/stderr.
+Docker Compose sends both containers' logs through the GELF logging driver to
+Logstash, Logstash parses the JSON payload, and Elasticsearch stores the records
+for search and aggregation. Kibana is available for visualization.
 
 ## Local Run
 
@@ -29,7 +29,7 @@ wrapper and the raw `short_message` GELF field are removed before indexing.
 |-----------------|---------|--------------------------------------------------|
 | `@timestamp`    | date    | Event time from the application log              |
 | `log.level`     | keyword | `debug` \| `info` \| `warn` \| `error`          |
-| `service.name`  | keyword | Always `github-release-notifier`                 |
+| `service.name`  | keyword | `github-release-notifier` or `notification-service` |
 | `message`       | text    | Human-readable log message                       |
 | `requestId`     | keyword | UUID correlating entries for one HTTP request    |
 | `method`        | keyword | HTTP method (`GET`, `POST`, ...)                  |

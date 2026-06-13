@@ -375,7 +375,7 @@ Risks and recommended improvements:
 | Token leakage | Add token expiration for confirmation tokens |
 | Email HTML injection through repository/tag values | Escape dynamic values before embedding them into email HTML |
 | Missing audit trail | Add event logs for subscribe, confirm, unsubscribe, and notification attempts |
-| Weak operational visibility | Add structured logging, metrics, and alerting |
+| Missing operational alerts | Add alerting based on structured logs and Prometheus metrics |
 
 ---
 

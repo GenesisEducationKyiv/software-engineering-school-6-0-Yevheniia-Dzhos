@@ -9,7 +9,6 @@ vi.mock('../../services/notification-service/src/emailClient.js', () => ({
   verifyEmailConnection: vi.fn()
 }));
 
-
 const notificationService = await import(
   '../../services/notification-service/src/notificationService.js'
 );
@@ -59,5 +58,19 @@ describe('notification service app', () => {
 
     expect(response.status).toBe(503);
     expect(response.body).toEqual({ status: 'not ready' });
+  });
+
+  it('exposes request IDs and RED metrics', async () => {
+    const app = createApp();
+    const healthResponse = await request(app)
+      .get('/health')
+      .set('x-request-id', 'request-123');
+    const metricsResponse = await request(app).get('/metrics');
+
+    expect(healthResponse.headers['x-request-id']).toBe('request-123');
+    expect(metricsResponse.status).toBe(200);
+    expect(metricsResponse.text).toContain(
+      'http_requests_total{method="GET",route="/health",status_code="200",status_class="2xx"}'
+    );
   });
 });

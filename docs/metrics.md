@@ -1,7 +1,7 @@
 # RED Metrics
 
-The application exposes RED metrics for HTTP traffic in Prometheus text format
-at `/metrics`.
+The application and notification service expose RED metrics for HTTP traffic in
+Prometheus text format at `/metrics`.
 
 ## Metrics
 
@@ -19,10 +19,11 @@ docker compose up --build
 Services:
 
 - Application metrics: `http://localhost:3000/metrics`
+- Notification service metrics: `http://localhost:3002/metrics`
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3001`
 
-Prometheus scrapes the app every 15 seconds using
+Prometheus scrapes both services every 15 seconds using
 `config/prometheus.yml`.
 
 Grafana is provisioned automatically with Prometheus as the default datasource

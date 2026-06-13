@@ -8,6 +8,7 @@ that knows about SMTP, Nodemailer, and email templates.
 
 - `GET /health`
 - `GET /health/ready`
+- `GET /metrics`
 - `POST /notifications/subscription-confirmation`
 - `POST /notifications/release`
 
@@ -20,3 +21,4 @@ npm run notification:start
 ```
 
 The service listens on port `3002` by default.
+It writes structured JSON logs and exposes Prometheus RED metrics for HTTP traffic.

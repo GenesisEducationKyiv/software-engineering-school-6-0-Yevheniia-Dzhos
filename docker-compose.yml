@@ -63,6 +63,12 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       MAIL_FROM: ${MAIL_FROM:-GitHub Release Notifier <no-reply@example.com>}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "udp://host.docker.internal:12201"
+        tag: "notification-service"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3002/health/ready >/dev/null 2>&1"]
       interval: 10s
@@ -150,6 +156,8 @@ services:
       - prometheus_data:/prometheus
     depends_on:
       app:
+        condition: service_healthy
+      notification-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/ready >/dev/null 2>&1"]

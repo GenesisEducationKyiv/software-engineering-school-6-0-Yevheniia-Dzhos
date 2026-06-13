@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import {
+  createMetrics,
   recordHttpRequest,
   renderMetrics,
   resetMetrics
@@ -81,5 +82,15 @@ describe('RED metrics', () => {
     expect(metrics).toContain('# HELP http_requests_total');
     expect(metrics).toContain('# HELP http_request_errors_total');
     expect(metrics).toContain('# HELP http_request_duration_seconds');
+  });
+
+  it('keeps metrics from separate services isolated', () => {
+    const firstService = createMetrics();
+    const secondService = createMetrics();
+
+    firstService.recordHttpRequest(createRequest('/health'), createResponse(200), 0.01);
+
+    expect(firstService.renderMetrics()).toContain('route="/health"');
+    expect(secondService.renderMetrics()).not.toContain('route="/health"');
   });
 });

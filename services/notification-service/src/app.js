@@ -4,6 +4,7 @@ import {
   sendSubscriptionConfirmation
 } from './notificationService.js';
 import { verifyEmailConnection } from './emailClient.js';
+import { logger, registerObservability } from './observability.js';
 
 function requireFields(body, fields) {
   return fields.every((field) => {
@@ -14,6 +15,7 @@ function requireFields(body, fields) {
 export function createApp() {
   const app = express();
 
+  registerObservability(app);
   app.use(express.json());
 
   app.get('/health', (_req, res) => {
@@ -68,8 +70,13 @@ export function createApp() {
     }
   });
 
-  app.use((error, _req, res, _next) => {
-    console.error('Notification delivery failed', error);
+  app.use((error, req, res, _next) => {
+    logger.error('Notification delivery failed', {
+      requestId: req.requestId,
+      method: req.method,
+      path: req.originalUrl,
+      error
+    });
     res.status(500).json({ error: 'Notification delivery failed' });
   });
 
