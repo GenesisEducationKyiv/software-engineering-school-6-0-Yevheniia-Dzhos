@@ -9,12 +9,21 @@ that knows about SMTP, Nodemailer, and email templates.
 - `GET /health`
 - `GET /health/ready`
 - `GET /metrics`
-- `POST /notifications/subscription-confirmation`
-- `POST /notifications/release`
+
+## Message Consumer
+
+The service consumes persistent commands from the durable `notifications`
+RabbitMQ queue:
+
+- `notification.subscription-confirmation.send`
+- `notification.release.send`
+
+Successful commands are acknowledged after email delivery. Failed commands are
+rejected into the configured retry topology.
 
 ## Local Start
 
-Set the SMTP and application URL environment variables, then run:
+Set the RabbitMQ, SMTP, and application URL environment variables, then run:
 
 ```bash
 npm run notification:start

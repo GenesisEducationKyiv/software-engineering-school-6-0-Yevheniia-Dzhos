@@ -41,6 +41,12 @@ Provides shared operational capabilities:
 
 Public API: `src/modules/observability/index.js`
 
+### Messaging
+
+Provides the shared RabbitMQ connection, notification topology, and publisher.
+
+Public API: `src/modules/messaging`
+
 ## Extracted Microservice
 
 ### Notification Service
@@ -54,40 +60,49 @@ The service owns:
 - confirmation email delivery
 - release notification delivery
 
-The monolith no longer imports email delivery implementation. It communicates
-with the notification service through HTTP using the client exposed by
-`src/modules/notifications/index.js`.
+The monolith no longer imports email delivery implementation. It publishes
+commands through RabbitMQ using `src/modules/notifications/index.js`.
 
-## Internal HTTP Contract
+## Notification Command Contract
 
 ### Subscription Confirmation
 
-`POST /notifications/subscription-confirmation`
+Routing key: `notification.subscription-confirmation.send`
 
 ```json
 {
-  "email": "user@example.com",
-  "token": "confirmation-token",
-  "repo": "owner/repository"
+  "id": "message-id",
+  "type": "notification.subscription-confirmation.send",
+  "occurredAt": "2026-06-14T00:00:00.000Z",
+  "payload": {
+    "email": "user@example.com",
+    "token": "confirmation-token",
+    "repo": "owner/repository"
+  }
 }
 ```
 
 ### Release Notification
 
-`POST /notifications/release`
+Routing key: `notification.release.send`
 
 ```json
 {
-  "email": "user@example.com",
-  "repo": "owner/repository",
-  "tag": "v1.0.0",
-  "unsubscribeToken": "unsubscribe-token"
+  "id": "message-id",
+  "type": "notification.release.send",
+  "occurredAt": "2026-06-14T00:00:00.000Z",
+  "payload": {
+    "email": "user@example.com",
+    "repo": "owner/repository",
+    "tag": "v1.0.0",
+    "unsubscribeToken": "unsubscribe-token"
+  }
 }
 ```
 
-The notification service returns `202 Accepted` after accepting a valid
-notification request. Invalid payloads return `400`. Delivery failures return
-`500`, which the monolith exposes as a `502` dependency failure.
+The publisher uses RabbitMQ confirms. Publishing failures are exposed by the
+monolith as a `502` dependency failure. The consumer acknowledges commands only
+after successful email delivery.
 
 ## Data Ownership
 

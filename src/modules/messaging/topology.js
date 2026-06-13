@@ -3,6 +3,18 @@ export const notificationCommands = {
   release: 'notification.release.send'
 };
 
+export function getNotificationTopologyConfig(env) {
+  return {
+    exchange: env.notificationExchange,
+    queue: env.notificationQueue,
+    retryExchange: env.notificationRetryExchange,
+    retryQueue: env.notificationRetryQueue,
+    deadLetterExchange: env.notificationDeadLetterExchange,
+    deadLetterQueue: env.notificationDeadLetterQueue,
+    retryTtlMs: env.notificationRetryTtlMs
+  };
+}
+
 export async function assertNotificationTopology(channel, config) {
   await channel.assertExchange(config.exchange, 'topic', { durable: true });
   await channel.assertExchange(config.retryExchange, 'topic', { durable: true });

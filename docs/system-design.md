@@ -418,11 +418,17 @@ Expected deployment services:
 | Node.js API       |
 | Express + scanner |
 +-------------------+
-          |
-          v
+     |          |
+     v          v
++---------+  +-------------------+
+| db      |  | RabbitMQ          |
+| Postgres|  | command broker    |
++---------+  +-------------------+
+                   |
+                   v
 +-------------------+
-| db                |
-| PostgreSQL        |
+| notification      |
+| service consumer  |
 +-------------------+
           |
           v
@@ -445,7 +451,12 @@ Important environment variables:
 | `GITHUB_TOKEN` | Optional GitHub API token |
 | `GITHUB_API_URL` | GitHub API base URL |
 | `GITHUB_REQUEST_TIMEOUT_MS` | GitHub API request timeout |
-| `NOTIFICATION_REQUEST_TIMEOUT_MS` | Notification service request timeout |
+| `RABBITMQ_URL` | RabbitMQ connection string |
+| `NOTIFICATION_EXCHANGE` | Notification command exchange |
+| `NOTIFICATION_QUEUE` | Notification consumer queue |
+| `NOTIFICATION_RETRY_TTL_MS` | Delay before retrying failed commands |
+| `NOTIFICATION_MAX_ATTEMPTS` | Maximum command delivery attempts |
+| `BROKER_RECONNECT_DELAY_MS` | Delay before reconnecting to RabbitMQ |
 | `SCAN_INTERVAL_MS` | Release scanner interval |
 | `SMTP_HOST` | SMTP server host |
 | `SMTP_PORT` | SMTP server port |

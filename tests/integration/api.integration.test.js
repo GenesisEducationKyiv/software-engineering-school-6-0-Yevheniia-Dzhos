@@ -12,7 +12,9 @@ let app;
 let pool;
 let query;
 let githubServer;
-let notificationServer;
+let notificationConsumer;
+let notificationBrokerClient;
+let closeNotificationPublisher;
 
 function createGithubStub() {
   return http.createServer((req, res) => {
@@ -70,38 +72,81 @@ async function getStoredTokens(email) {
   return result.rows[0];
 }
 
+async function clearEmails() {
+  await fetch('http://localhost:18025/api/v1/messages', { method: 'DELETE' });
+}
+
+async function waitForEmail(email, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const response = await fetch('http://localhost:18025/api/v2/messages');
+    const body = await response.json();
+    const message = body.items.find((item) => {
+      return item.Content.Headers.To?.some((recipient) => recipient.includes(email));
+    });
+
+    if (message) return message;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  throw new Error(`Timed out waiting for email to ${email}`);
+}
+
 describe('API integration endpoints', () => {
   beforeAll(async () => {
     githubServer = createGithubStub();
     const githubPort = await listen(githubServer);
     process.env.GITHUB_API_URL = `http://127.0.0.1:${githubPort}`;
 
-    const notificationAppModule = await import(
-      '../../services/notification-service/src/app.js'
-    );
-    notificationServer = http.createServer(notificationAppModule.createApp());
-    const notificationPort = await listen(notificationServer);
-    process.env.NOTIFICATION_SERVICE_URL = `http://127.0.0.1:${notificationPort}`;
-
     const appModule = await import('../../src/app.js');
     const dbModule = await import('../../src/db/client.js');
     const migrationModule = await import('../../src/db/migrate.js');
+    const notificationsModule = await import('../../src/modules/notifications/index.js');
+    const { createBrokerClient } = await import(
+      '../../src/modules/messaging/brokerClient.js'
+    );
+    const {
+      getNotificationTopologyConfig
+    } = await import('../../src/modules/messaging/topology.js');
+    const { env } = await import('../../services/notification-service/src/config.js');
+    const { createNotificationConsumer } = await import(
+      '../../services/notification-service/src/consumer.js'
+    );
+    const { logger } = await import(
+      '../../services/notification-service/src/observability.js'
+    );
 
     app = appModule.createApp();
     pool = dbModule.pool;
     query = dbModule.query;
+    closeNotificationPublisher = notificationsModule.closeNotificationPublisher;
 
     await migrationModule.runMigrations();
+    notificationBrokerClient = createBrokerClient({
+      url: env.rabbitmqUrl,
+      reconnectDelayMs: env.brokerReconnectDelayMs,
+      logger
+    });
+    notificationConsumer = createNotificationConsumer({
+      brokerClient: notificationBrokerClient,
+      topology: getNotificationTopologyConfig(env),
+      logger
+    });
+    await notificationConsumer.start();
   });
 
   beforeEach(async () => {
     await query('TRUNCATE subscriptions, repositories RESTART IDENTITY CASCADE');
+    await clearEmails();
   });
 
   afterAll(async () => {
+    await closeNotificationPublisher?.();
+    await notificationConsumer?.close();
+    await notificationBrokerClient?.close();
     await pool?.end();
     await close(githubServer);
-    await close(notificationServer);
   });
 
   it('GET /health returns service status', async () => {
@@ -153,6 +198,8 @@ describe('API integration endpoints', () => {
       full_name: 'octocat/Hello-World',
       last_seen_tag: 'v1.0.0'
     });
+    const email = await waitForEmail('user@example.com');
+    expect(email.Content.Headers.Subject[0]).toContain('octocat/Hello-World');
   });
 
   it('POST /api/subscribe resends confirmation for an existing pending subscription', async () => {

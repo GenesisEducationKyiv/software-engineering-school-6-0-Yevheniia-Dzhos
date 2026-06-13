@@ -1,30 +1,25 @@
 import { env } from '../../config/env.js';
-import { AppError } from '../../utils/errors.js';
+import { createBrokerClient } from '../messaging/brokerClient.js';
+import { createNotificationPublisher } from '../messaging/notificationPublisher.js';
+import {
+  getNotificationTopologyConfig,
+  notificationCommands
+} from '../messaging/topology.js';
+import { logger } from '../observability/index.js';
 
-async function sendNotification(path, payload) {
-  let response;
-
-  try {
-    const url = new URL(path, `${env.notificationServiceUrl.replace(/\/+$/, '')}/`);
-    response = await fetch(url.toString(), {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json'
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(env.notificationRequestTimeoutMs)
-    });
-  } catch {
-    throw new AppError(502, 'Notification service unavailable');
-  }
-
-  if (!response.ok) {
-    throw new AppError(502, 'Notification service error');
-  }
-}
+const brokerClient = createBrokerClient({
+  url: env.rabbitmqUrl,
+  reconnectDelayMs: env.brokerReconnectDelayMs,
+  logger
+});
+const publisher = createNotificationPublisher({
+  brokerClient,
+  topology: getNotificationTopologyConfig(env),
+  logger
+});
 
 export async function sendSubscriptionConfirmation(email, token, repo) {
-  await sendNotification('/notifications/subscription-confirmation', {
+  await publisher.publish(notificationCommands.subscriptionConfirmation, {
     email,
     token,
     repo
@@ -32,10 +27,15 @@ export async function sendSubscriptionConfirmation(email, token, repo) {
 }
 
 export async function sendReleaseNotification(email, repo, tag, unsubscribeToken) {
-  await sendNotification('/notifications/release', {
+  await publisher.publish(notificationCommands.release, {
     email,
     repo,
     tag,
     unsubscribeToken
   });
+}
+
+export async function closeNotificationPublisher() {
+  await publisher.close();
+  await brokerClient.close();
 }
