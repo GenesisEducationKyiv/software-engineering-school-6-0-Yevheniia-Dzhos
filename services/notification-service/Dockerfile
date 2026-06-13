@@ -6,6 +6,7 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY services/notification-service ./services/notification-service
+COPY src/config/envParsers.js ./src/config/envParsers.js
 
 EXPOSE 3002
 
