@@ -9,6 +9,7 @@ COPY services/notification-service ./services/notification-service
 COPY src/config/envParsers.js src/config/messagingEnv.js ./src/config/
 COPY src/modules/messaging ./src/modules/messaging
 COPY src/modules/observability ./src/modules/observability
+COPY src/utils/gracefulShutdown.js ./src/utils/gracefulShutdown.js
 
 EXPOSE 3002
 

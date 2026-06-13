@@ -11,7 +11,8 @@ export function getNotificationTopologyConfig(env) {
     retryQueue: env.notificationRetryQueue,
     deadLetterExchange: env.notificationDeadLetterExchange,
     deadLetterQueue: env.notificationDeadLetterQueue,
-    retryTtlMs: env.notificationRetryTtlMs
+    retryTtlMs: env.notificationRetryTtlMs,
+    maxAttempts: env.notificationMaxAttempts
   };
 }
 

@@ -18,8 +18,15 @@ RabbitMQ queue:
 - `notification.subscription-confirmation.send`
 - `notification.release.send`
 
-Successful commands are acknowledged after email delivery. Failed commands are
-rejected into the configured retry topology.
+Successful message IDs are stored in PostgreSQL and acknowledged after email
+delivery. Redelivered IDs are acknowledged without sending another email.
+Failed commands pass through the configured TTL retry queue and move to the DLQ
+after the configured maximum attempts. Invalid commands move directly to the
+DLQ.
+
+The readiness endpoint verifies SMTP and PostgreSQL. The consumer restores its
+subscription after RabbitMQ channel loss. SIGTERM and SIGINT stop the HTTP
+server, consumer, broker connection, and database pool.
 
 ## Local Start
 

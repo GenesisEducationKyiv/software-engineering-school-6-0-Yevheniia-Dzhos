@@ -14,6 +14,7 @@ let query;
 let githubServer;
 let notificationConsumer;
 let notificationBrokerClient;
+let notificationPool;
 let closeNotificationPublisher;
 
 function createGithubStub() {
@@ -93,6 +94,18 @@ async function waitForEmail(email, timeoutMs = 5000) {
   throw new Error(`Timed out waiting for email to ${email}`);
 }
 
+async function waitForProcessedMessage(timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const result = await query('SELECT message_id, message_type FROM processed_messages');
+    if (result.rows.length > 0) return result.rows[0];
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  throw new Error('Timed out waiting for processed message record');
+}
+
 describe('API integration endpoints', () => {
   beforeAll(async () => {
     githubServer = createGithubStub();
@@ -113,6 +126,9 @@ describe('API integration endpoints', () => {
     const { createNotificationConsumer } = await import(
       '../../services/notification-service/src/consumer.js'
     );
+    const notificationDatabase = await import(
+      '../../services/notification-service/src/database.js'
+    );
     const { logger } = await import(
       '../../services/notification-service/src/observability.js'
     );
@@ -121,6 +137,7 @@ describe('API integration endpoints', () => {
     pool = dbModule.pool;
     query = dbModule.query;
     closeNotificationPublisher = notificationsModule.closeNotificationPublisher;
+    notificationPool = notificationDatabase.pool;
 
     await migrationModule.runMigrations();
     notificationBrokerClient = createBrokerClient({
@@ -131,13 +148,16 @@ describe('API integration endpoints', () => {
     notificationConsumer = createNotificationConsumer({
       brokerClient: notificationBrokerClient,
       topology: getNotificationTopologyConfig(env),
+      reconnectDelayMs: env.brokerReconnectDelayMs,
       logger
     });
     await notificationConsumer.start();
   });
 
   beforeEach(async () => {
-    await query('TRUNCATE subscriptions, repositories RESTART IDENTITY CASCADE');
+    await query(
+      'TRUNCATE processed_messages, subscriptions, repositories RESTART IDENTITY CASCADE'
+    );
     await clearEmails();
   });
 
@@ -145,6 +165,7 @@ describe('API integration endpoints', () => {
     await closeNotificationPublisher?.();
     await notificationConsumer?.close();
     await notificationBrokerClient?.close();
+    await notificationPool?.end();
     await pool?.end();
     await close(githubServer);
   });
@@ -200,6 +221,10 @@ describe('API integration endpoints', () => {
     });
     const email = await waitForEmail('user@example.com');
     expect(email.Content.Headers.Subject[0]).toContain('octocat/Hello-World');
+    await expect(waitForProcessedMessage()).resolves.toMatchObject({
+      message_id: expect.any(String),
+      message_type: 'notification.subscription-confirmation.send'
+    });
   });
 
   it('POST /api/subscribe resends confirmation for an existing pending subscription', async () => {

@@ -106,5 +106,6 @@ after successful email delivery.
 
 ## Data Ownership
 
-The main application owns PostgreSQL and all subscription and repository data.
-The notification service is stateless and does not access the main database.
+The main application owns subscription, repository, and release data. The
+notification service uses the shared PostgreSQL instance only for the
+`processed_messages` idempotency table.

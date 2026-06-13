@@ -4,8 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../services/notification-service/src/emailClient.js', () => ({
   verifyEmailConnection: vi.fn()
 }));
+vi.mock('../../services/notification-service/src/database.js', () => ({
+  verifyDatabaseConnection: vi.fn()
+}));
 
 const emailClient = await import('../../services/notification-service/src/emailClient.js');
+const database = await import('../../services/notification-service/src/database.js');
 const { createApp } = await import('../../services/notification-service/src/app.js');
 
 describe('notification service app', () => {
@@ -19,10 +23,22 @@ describe('notification service app', () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ status: 'ready' });
     expect(emailClient.verifyEmailConnection).toHaveBeenCalledTimes(1);
+    expect(database.verifyDatabaseConnection).toHaveBeenCalledTimes(1);
   });
 
   it('reports not ready when SMTP is unavailable', async () => {
     emailClient.verifyEmailConnection.mockRejectedValue(new Error('SMTP unavailable'));
+
+    const response = await request(createApp()).get('/health/ready');
+
+    expect(response.status).toBe(503);
+    expect(response.body).toEqual({ status: 'not ready' });
+  });
+
+  it('reports not ready when PostgreSQL is unavailable', async () => {
+    database.verifyDatabaseConnection.mockRejectedValue(
+      new Error('PostgreSQL unavailable')
+    );
 
     const response = await request(createApp()).get('/health/ready');
 
