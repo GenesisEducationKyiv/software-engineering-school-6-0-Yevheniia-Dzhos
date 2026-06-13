@@ -1,13 +1,16 @@
 import { query } from '../../db/client.js';
 
 export async function upsertTrackedRepository(repo, owner, name, latestTag) {
-    await query(
+    const result = await query(
         `INSERT INTO repositories (full_name, owner, name, last_seen_tag, updated_at)
      VALUES ($1, $2, $3, $4, NOW())
      ON CONFLICT (full_name)
-     DO UPDATE SET updated_at = NOW()`,
+     DO UPDATE SET updated_at = NOW()
+     RETURNING id`,
         [repo, owner, name, latestTag]
     );
+
+    return result.rows[0] || null;
 }
 
 export async function findTrackedRepositoryByFullName(repo) {
