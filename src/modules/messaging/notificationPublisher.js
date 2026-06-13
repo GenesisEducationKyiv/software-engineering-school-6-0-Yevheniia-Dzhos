@@ -9,8 +9,11 @@ export function createNotificationPublisher({
 }) {
   let channel;
   let channelPromise;
+  let closing = false;
+  const inFlight = new Set();
 
   async function getChannel() {
+    if (closing) throw new Error('Notification publisher is closed');
     if (channel) return channel;
     if (channelPromise) return channelPromise;
 
@@ -35,7 +38,7 @@ export function createNotificationPublisher({
     return channelPromise;
   }
 
-  async function publish(type, payload) {
+  async function publishCommand(type, payload) {
     const command = {
       id: randomUUID(),
       type,
@@ -67,9 +70,24 @@ export function createNotificationPublisher({
     }
   }
 
+  function publish(type, payload) {
+    const task = publishCommand(type, payload);
+    inFlight.add(task);
+    void task.then(
+      () => inFlight.delete(task),
+      () => inFlight.delete(task)
+    );
+    return task;
+  }
+
   async function close() {
-    const currentChannel = channel;
+    closing = true;
+    const pendingChannel = channelPromise;
+    const currentChannel = channel
+      ?? await pendingChannel?.catch(() => undefined);
+    await Promise.allSettled(inFlight);
     channel = undefined;
+    channelPromise = undefined;
     if (currentChannel) await currentChannel.close();
   }
 

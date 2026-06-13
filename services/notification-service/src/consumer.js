@@ -69,18 +69,49 @@ export function createNotificationConsumer({
     deliveryChannel.ack(message);
   }
 
+  async function rejectInvalidCommand(message, deliveryChannel, error) {
+    logger.error('Invalid notification command', {
+      messageId: message.properties.messageId,
+      type: message.properties.type,
+      error
+    });
+
+    try {
+      await moveToDeadLetter(message, deliveryChannel);
+    } catch (deadLetterError) {
+      logger.error('Notification command dead-lettering failed', {
+        messageId: message.properties.messageId,
+        type: message.properties.type,
+        error: deadLetterError
+      });
+      deliveryChannel.nack(message, false, true);
+    }
+  }
+
   async function handleMessage(message, deliveryChannel) {
     if (!message) return;
 
+    let command;
+
     try {
-      const command = JSON.parse(message.content.toString());
-      const handler = handlers[command.type];
+      command = JSON.parse(message.content.toString());
+    } catch (error) {
+      await rejectInvalidCommand(message, deliveryChannel, error);
+      return;
+    }
 
-      if (!handler || !command.payload || command.id !== message.properties.messageId) {
-        await moveToDeadLetter(message, deliveryChannel);
-        return;
-      }
+    const handler = handlers[command.type];
 
+    if (!handler || !command.payload || command.id !== message.properties.messageId) {
+      await rejectInvalidCommand(
+        message,
+        deliveryChannel,
+        new Error('Invalid notification command')
+      );
+      return;
+    }
+
+    try {
       if (await hasProcessedMessage(command.id)) {
         deliveryChannel.ack(message);
         return;

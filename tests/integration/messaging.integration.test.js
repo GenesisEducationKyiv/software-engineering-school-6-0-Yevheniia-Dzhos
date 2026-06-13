@@ -15,10 +15,26 @@ const config = {
   retryTtlMs: 100
 };
 
+async function waitForMessage(queue, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const message = await channel.get(queue, { noAck: false });
+    if (message) return message;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+
+  throw new Error(`Timed out waiting for a message in ${queue}`);
+}
+
 describe('RabbitMQ notification topology', () => {
   beforeAll(async () => {
     connection = await amqp.connect(process.env.RABBITMQ_URL);
     channel = await connection.createChannel();
+    await assertNotificationTopology(channel, config);
+    await channel.purgeQueue(config.queue);
+    await channel.purgeQueue(config.retryQueue);
+    await channel.purgeQueue(config.deadLetterQueue);
   });
 
   afterAll(async () => {
@@ -27,8 +43,6 @@ describe('RabbitMQ notification topology', () => {
   });
 
   it('creates durable notification, retry and dead-letter queues', async () => {
-    await assertNotificationTopology(channel, config);
-
     await expect(channel.checkQueue(config.queue)).resolves.toMatchObject({
       queue: config.queue
     });
@@ -38,5 +52,27 @@ describe('RabbitMQ notification topology', () => {
     await expect(channel.checkQueue(config.deadLetterQueue)).resolves.toMatchObject({
       queue: config.deadLetterQueue
     });
+  });
+
+  it('returns rejected commands through the retry queue with x-death metadata', async () => {
+    const routingKey = 'notification.release.send';
+    channel.publish(
+      config.exchange,
+      routingKey,
+      Buffer.from(JSON.stringify({ id: 'retry-message' })),
+      { persistent: true, messageId: 'retry-message', type: routingKey }
+    );
+
+    const firstDelivery = await waitForMessage(config.queue);
+    channel.nack(firstDelivery, false, false);
+
+    const retryDelivery = await waitForMessage(config.queue);
+    const mainQueueDeath = retryDelivery.properties.headers['x-death'].find((entry) => {
+      return entry.queue === config.queue;
+    });
+
+    expect(mainQueueDeath.count).toBe(1);
+    expect(retryDelivery.fields.routingKey).toBe(routingKey);
+    channel.ack(retryDelivery);
   });
 });

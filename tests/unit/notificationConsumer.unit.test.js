@@ -201,6 +201,37 @@ describe('notification consumer', () => {
     expect(channel.ack).toHaveBeenCalledWith(message);
   });
 
+  it('moves malformed JSON directly to the dead-letter exchange', async () => {
+    const channel = createChannel();
+    const consumer = createNotificationConsumer({
+      brokerClient: { createConfirmChannel: vi.fn().mockResolvedValue(channel) },
+      topology,
+      reconnectDelayMs: 1000,
+      logger: { error: vi.fn() }
+    });
+
+    await consumer.start();
+    const message = {
+      content: Buffer.from('{'),
+      fields: { routingKey: 'notification.release.send' },
+      properties: {
+        messageId: 'message-1',
+        type: 'notification.release.send',
+        headers: {}
+      }
+    };
+    await channel.consume.mock.calls[0][1](message);
+
+    expect(channel.publish).toHaveBeenCalledWith(
+      topology.deadLetterExchange,
+      'notification.release.send',
+      message.content,
+      message.properties
+    );
+    expect(channel.ack).toHaveBeenCalledWith(message);
+    expect(channel.nack).not.toHaveBeenCalled();
+  });
+
   it('restarts consumption after the channel closes', async () => {
     vi.useFakeTimers();
     const firstChannel = createChannel();

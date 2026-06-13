@@ -91,4 +91,26 @@ describe('notification publisher', () => {
         message: 'Notification service unavailable'
       });
   });
+
+  it('closes a channel that resolves while shutdown is in progress', async () => {
+    let resolveChannel;
+    const channel = createChannel();
+    createConfirmChannel.mockReturnValue(new Promise((resolve) => {
+      resolveChannel = resolve;
+    }));
+    const publisher = createNotificationPublisher({
+      brokerClient: { createConfirmChannel },
+      topology,
+      logger
+    });
+
+    const publishing = publisher.publish('notification.release.send', {});
+    const closing = publisher.close();
+    resolveChannel(channel);
+
+    await publishing;
+    await closing;
+
+    expect(channel.close).toHaveBeenCalledTimes(1);
+  });
 });
