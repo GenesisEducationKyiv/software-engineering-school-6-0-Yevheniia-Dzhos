@@ -29,6 +29,16 @@ function getNumberEnv(name, defaultValue) {
   return parsed;
 }
 
+function getPositiveIntegerEnv(name, defaultValue) {
+  const value = getNumberEnv(name, defaultValue);
+
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error(`Environment variable ${name} must be a positive integer`);
+  }
+
+  return value;
+}
+
 export const env = {
   port: getNumberEnv('PORT', 3000),
   databaseUrl: getRequiredEnv('DATABASE_URL'),
@@ -39,7 +49,9 @@ export const env = {
 
   githubToken: getOptionalEnv('GITHUB_TOKEN', ''),
   githubApiUrl: getOptionalEnv('GITHUB_API_URL', 'https://api.github.com'),
+  githubRequestTimeoutMs: getPositiveIntegerEnv('GITHUB_REQUEST_TIMEOUT_MS', 10000),
 
   scanIntervalMs: getNumberEnv('SCAN_INTERVAL_MS', 300000),
-  scanChunkSize: getNumberEnv('SCAN_CHUNK_SIZE', 5)
+  scanChunkSize: getNumberEnv('SCAN_CHUNK_SIZE', 5),
+  notificationRequestTimeoutMs: getPositiveIntegerEnv('NOTIFICATION_REQUEST_TIMEOUT_MS', 10000)
 };

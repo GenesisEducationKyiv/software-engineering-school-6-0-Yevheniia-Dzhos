@@ -10,7 +10,8 @@ async function sendNotification(path, payload) {
       headers: {
         'content-type': 'application/json'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(env.notificationRequestTimeoutMs)
     });
   } catch {
     throw new AppError(502, 'Notification service unavailable');

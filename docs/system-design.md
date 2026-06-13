@@ -444,6 +444,8 @@ Important environment variables:
 | `APP_BASE_URL` | Base URL used in confirmation and unsubscribe links |
 | `GITHUB_TOKEN` | Optional GitHub API token |
 | `GITHUB_API_URL` | GitHub API base URL |
+| `GITHUB_REQUEST_TIMEOUT_MS` | GitHub API request timeout |
+| `NOTIFICATION_REQUEST_TIMEOUT_MS` | Notification service request timeout |
 | `SCAN_INTERVAL_MS` | Release scanner interval |
 | `SMTP_HOST` | SMTP server host |
 | `SMTP_PORT` | SMTP server port |

@@ -14,9 +14,11 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@db:5432/releases}
       NOTIFICATION_SERVICE_URL: ${NOTIFICATION_SERVICE_URL:-http://notification-service:3002}
+      NOTIFICATION_REQUEST_TIMEOUT_MS: ${NOTIFICATION_REQUEST_TIMEOUT_MS:-10000}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITHUB_API_URL: ${GITHUB_API_URL:-https://api.github.com}
+      GITHUB_REQUEST_TIMEOUT_MS: ${GITHUB_REQUEST_TIMEOUT_MS:-10000}
       SCAN_INTERVAL_MS: ${SCAN_INTERVAL_MS:-300000}
       SCAN_CHUNK_SIZE: ${SCAN_CHUNK_SIZE:-5}
     logging:

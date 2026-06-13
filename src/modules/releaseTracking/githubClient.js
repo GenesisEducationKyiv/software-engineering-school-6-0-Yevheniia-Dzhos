@@ -15,9 +15,15 @@ function createHeaders() {
 }
 
 export async function githubGet(path) {
-    const response = await fetch(`${env.githubApiUrl}${path}`, {
-        headers: createHeaders()
-    });
+    let response;
+    try {
+        response = await fetch(`${env.githubApiUrl}${path}`, {
+            headers: createHeaders(),
+            signal: AbortSignal.timeout(env.githubRequestTimeoutMs)
+        });
+    } catch {
+        throw new AppError(502, 'GitHub API unavailable');
+    }
 
     if (
         response.status === 429 ||

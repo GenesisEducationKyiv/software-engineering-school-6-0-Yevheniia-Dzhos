@@ -1,10 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const originalFetch = global.fetch;
+const originalTimeout = process.env.NOTIFICATION_REQUEST_TIMEOUT_MS;
 
 describe('notification client', () => {
   afterEach(() => {
     global.fetch = originalFetch;
+    if (originalTimeout === undefined) {
+      delete process.env.NOTIFICATION_REQUEST_TIMEOUT_MS;
+    } else {
+      process.env.NOTIFICATION_REQUEST_TIMEOUT_MS = originalTimeout;
+    }
     vi.resetModules();
   });
 
@@ -20,6 +26,7 @@ describe('notification client', () => {
       expect.stringContaining('/notifications/subscription-confirmation'),
       expect.objectContaining({
         method: 'POST',
+        signal: expect.any(AbortSignal),
         body: JSON.stringify({
           email: 'user@example.com',
           token: 'token-123',
@@ -40,6 +47,25 @@ describe('notification client', () => {
       'owner/repo',
       'v1.0.0',
       'unsubscribe-token'
+    )).rejects.toMatchObject({
+      status: 502,
+      message: 'Notification service unavailable'
+    });
+  });
+
+  it('returns a 502 application error when the notification request times out', async () => {
+    process.env.NOTIFICATION_REQUEST_TIMEOUT_MS = '1';
+    global.fetch = vi.fn((_url, { signal }) => new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => reject(signal.reason));
+    }));
+    const { sendSubscriptionConfirmation } = await import(
+      '../../src/modules/notifications/index.js'
+    );
+
+    await expect(sendSubscriptionConfirmation(
+      'user@example.com',
+      'token-123',
+      'owner/repo'
     )).rejects.toMatchObject({
       status: 502,
       message: 'Notification service unavailable'
