@@ -155,6 +155,29 @@ describe('API integration endpoints', () => {
     });
   });
 
+  it('POST /api/subscribe resends confirmation for an existing pending subscription', async () => {
+    await request(app)
+      .post('/api/subscribe')
+      .send({ email: 'user@example.com', repo: 'octocat/Hello-World' });
+    const originalTokens = await getStoredTokens('user@example.com');
+
+    const response = await request(app)
+      .post('/api/subscribe')
+      .send({ email: 'user@example.com', repo: 'octocat/Hello-World' });
+
+    expect(response.status).toBe(200);
+
+    const saved = await query(
+      `SELECT confirm_token, unsubscribe_token
+       FROM subscriptions
+       WHERE email = $1`,
+      ['user@example.com']
+    );
+
+    expect(saved.rows).toHaveLength(1);
+    expect(saved.rows[0]).toEqual(originalTokens);
+  });
+
   it('POST /api/subscribe returns 404 for unknown repositories', async () => {
     const response = await request(app)
       .post('/api/subscribe')

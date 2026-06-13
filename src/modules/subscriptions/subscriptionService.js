@@ -28,6 +28,11 @@ export async function createSubscription(input) {
   const existing = await findActiveSubscription(email, repository.id);
 
   if (existing) {
+    if (!existing.confirmed) {
+      await sendSubscriptionConfirmation(email, existing.confirm_token, repo);
+      return;
+    }
+
     throw new AppError(409, 'Email already subscribed to this repository');
   }
 

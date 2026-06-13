@@ -52,7 +52,7 @@ describe('subscription service', () => {
 
   it('rejects duplicate active subscriptions', async () => {
     releaseTrackingModule.trackRepository.mockResolvedValue({ id: 7 });
-    subscriptionRepository.findActiveSubscription.mockResolvedValue({ id: 99 });
+    subscriptionRepository.findActiveSubscription.mockResolvedValue({ id: 99, confirmed: true });
 
     await expect(subscriptionService.createSubscription({
       email: 'user@example.com',
@@ -61,6 +61,25 @@ describe('subscription service', () => {
       status: 409,
       message: 'Email already subscribed to this repository'
     });
+  });
+
+  it('resends confirmation for an existing pending subscription', async () => {
+    releaseTrackingModule.trackRepository.mockResolvedValue({ id: 7 });
+    subscriptionRepository.findActiveSubscription.mockResolvedValue({
+      id: 99,
+      confirmed: false,
+      confirm_token: 'existing-confirm-token'
+    });
+
+    await subscriptionService.createSubscription({
+      email: 'user@example.com',
+      repo: 'owner/repo'
+    });
+
+    expect(tokenService.createSubscriptionTokens).not.toHaveBeenCalled();
+    expect(subscriptionRepository.createSubscriptionRecord).not.toHaveBeenCalled();
+    expect(notificationService.sendSubscriptionConfirmation)
+      .toHaveBeenCalledWith('user@example.com', 'existing-confirm-token', 'owner/repo');
   });
 
   it('confirms subscriptions by valid token', async () => {
