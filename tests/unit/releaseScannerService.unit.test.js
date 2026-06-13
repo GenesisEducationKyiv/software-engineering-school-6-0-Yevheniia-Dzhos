@@ -14,6 +14,11 @@ vi.mock('../../src/modules/releaseTracking/trackedRepositoryRepository.js', () =
 vi.mock('../../src/modules/subscriptions/index.js', () => ({
   listActiveSubscribersForRepository: vi.fn()
 }));
+vi.mock('../../src/modules/observability/index.js', () => ({
+  logger: {
+    error: vi.fn()
+  }
+}));
 
 const githubService = await import('../../src/modules/releaseTracking/githubService.js');
 const notificationsModule = await import('../../src/modules/notifications/index.js');
@@ -21,6 +26,7 @@ const trackedRepositoryRepository = await import(
   '../../src/modules/releaseTracking/trackedRepositoryRepository.js'
 );
 const subscriptionsModule = await import('../../src/modules/subscriptions/index.js');
+const { logger } = await import('../../src/modules/observability/index.js');
 const { scanForNewReleases } = await import(
   '../../src/modules/releaseTracking/releaseScannerService.js'
 );
@@ -65,5 +71,58 @@ describe('release scanner service', () => {
     expect(notificationsModule.sendReleaseNotification).not.toHaveBeenCalled();
     expect(trackedRepositoryRepository.recordDiscoveredRelease).not.toHaveBeenCalled();
     expect(trackedRepositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
+  });
+
+  it('marks the release as handled after a partial delivery failure', async () => {
+    trackedRepositoryRepository.findRepositoriesWithActiveSubscriptions.mockResolvedValue([
+      { id: 1, full_name: 'owner/repo', last_seen_tag: 'v1.0.0' }
+    ]);
+    githubService.fetchLatestReleaseTag.mockResolvedValue('v1.1.0');
+    subscriptionsModule.listActiveSubscribersForRepository.mockResolvedValue([
+      { email: 'a@example.com', unsubscribe_token: 'unsubscribe-a' },
+      { email: 'b@example.com', unsubscribe_token: 'unsubscribe-b' }
+    ]);
+    notificationsModule.sendReleaseNotification.mockImplementation(async (email) => {
+      if (email === 'b@example.com') throw new Error('delivery failed');
+    });
+
+    await scanForNewReleases();
+
+    expect(trackedRepositoryRepository.recordDiscoveredRelease)
+      .toHaveBeenCalledWith(1, 'v1.1.0');
+    expect(trackedRepositoryRepository.updateLastSeenTag).toHaveBeenCalledWith(1, 'v1.1.0');
+    expect(logger.error).toHaveBeenCalledWith(
+      'Release notification delivery failed',
+      expect.objectContaining({
+        repository: 'owner/repo',
+        tag: 'v1.1.0',
+        email: 'b@example.com',
+        error: expect.any(Error)
+      })
+    );
+  });
+
+  it('keeps the release pending when every delivery fails', async () => {
+    trackedRepositoryRepository.findRepositoriesWithActiveSubscriptions.mockResolvedValue([
+      { id: 1, full_name: 'owner/repo', last_seen_tag: 'v1.0.0' }
+    ]);
+    githubService.fetchLatestReleaseTag.mockResolvedValue('v1.1.0');
+    subscriptionsModule.listActiveSubscribersForRepository.mockResolvedValue([
+      { email: 'a@example.com', unsubscribe_token: 'unsubscribe-a' },
+      { email: 'b@example.com', unsubscribe_token: 'unsubscribe-b' }
+    ]);
+    notificationsModule.sendReleaseNotification.mockRejectedValue(new Error('delivery failed'));
+
+    await scanForNewReleases();
+
+    expect(trackedRepositoryRepository.recordDiscoveredRelease).not.toHaveBeenCalled();
+    expect(trackedRepositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith(
+      'Release reaction failed',
+      expect.objectContaining({
+        repository: 'owner/repo',
+        error: expect.any(Error)
+      })
+    );
   });
 });

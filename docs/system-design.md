@@ -479,7 +479,8 @@ Email confirmation is required to prevent users from subscribing other people’
 | GitHub repository validation fails | API returns GitHub-related error | Retry transient failures with backoff |
 | GitHub rate limit exceeded | API returns 429 / scanner logs error | Cache, token rotation, queue throttling |
 | Email sending fails during subscribe | Subscription may be created but email may fail | Store email job and retry asynchronously |
-| Email sending fails during scan | Scanner logs error and continues | Queue notification jobs with retry and dead-letter queue |
+| Some emails fail during scan | Scanner logs failed recipients and marks the release handled to prevent duplicate delivery to successful recipients | Queue notification jobs with per-recipient retry and dead-letter queue |
+| All emails fail during scan | Scanner leaves the release pending for the next scan | Queue notification jobs with retry and dead-letter queue |
 | App restarts | Migrations run and scanner starts again | Separate migration job and distributed scheduler lock |
 | Multiple app instances | Each instance may start scanner | Use leader election or separate worker process |
 
