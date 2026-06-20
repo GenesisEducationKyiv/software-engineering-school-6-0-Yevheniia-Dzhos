@@ -3,6 +3,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { createNotificationGrpcClient } from '../../src/modules/notifications/grpcClient.js';
 
 describe('notification gRPC client', () => {
+  it('requires a gRPC service URL when no test client is injected', () => {
+    expect(() => createNotificationGrpcClient())
+      .toThrow('Notification gRPC service URL is not configured');
+  });
+
   it('sends subscription confirmation requests to notification-service', async () => {
     const sendSubscriptionConfirmation = vi.fn()
       .mockResolvedValue({ status: 'sent' });
@@ -55,6 +60,23 @@ describe('notification gRPC client', () => {
     )).rejects.toMatchObject({
       status: 502,
       message: 'Email delivery failed'
+    });
+  });
+
+  it('uses a stable fallback message for empty gRPC failures', async () => {
+    const sendSubscriptionConfirmation = vi.fn()
+      .mockRejectedValue(new Error(''));
+    const client = createNotificationGrpcClient({
+      client: { sendSubscriptionConfirmation }
+    });
+
+    await expect(client.sendSubscriptionConfirmation(
+      'user@example.com',
+      'confirm-token-123',
+      'owner/repo'
+    )).rejects.toMatchObject({
+      status: 502,
+      message: 'Notification gRPC service unavailable'
     });
   });
 });

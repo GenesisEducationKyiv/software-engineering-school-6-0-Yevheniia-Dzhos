@@ -38,7 +38,10 @@ export function createNotificationGrpcHandlers({
   };
 }
 
-export function createNotificationGrpcServer({ handlers } = {}) {
+export function createNotificationGrpcServer({
+  handlers,
+  requestTimeoutMs = 10000
+} = {}) {
   const routes = (router) => {
     router.service(
       NotificationService,
@@ -46,11 +49,22 @@ export function createNotificationGrpcServer({ handlers } = {}) {
     );
   };
 
-  return createServer(connectNodeAdapter({ routes }));
+  const server = createServer(connectNodeAdapter({ routes }));
+  server.setTimeout(requestTimeoutMs);
+  server.on('session', (session) => {
+    session.setTimeout(requestTimeoutMs, () => session.close());
+  });
+
+  return server;
 }
 
-export async function startNotificationGrpcServer({ port, logger, handlers }) {
-  const server = createNotificationGrpcServer({ handlers });
+export async function startNotificationGrpcServer({
+  port,
+  logger,
+  handlers,
+  requestTimeoutMs
+}) {
+  const server = createNotificationGrpcServer({ handlers, requestTimeoutMs });
 
   await new Promise((resolve, reject) => {
     server.once('error', reject);

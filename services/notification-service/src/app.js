@@ -5,7 +5,9 @@ import { verifyEmailConnection } from './emailClient.js';
 import notificationRoutes from './notificationRoutes.js';
 import { registerObservability } from './observability.js';
 
-export function createApp() {
+export function createApp({
+  verifyGrpcConnection = async () => {}
+} = {}) {
   const app = express();
 
   app.use(express.json());
@@ -14,7 +16,8 @@ export function createApp() {
   app.use(createHealthRoutes({
     readinessCheck: () => Promise.all([
       verifyEmailConnection(),
-      verifyDatabaseConnection()
+      verifyDatabaseConnection(),
+      verifyGrpcConnection()
     ])
   }));
 

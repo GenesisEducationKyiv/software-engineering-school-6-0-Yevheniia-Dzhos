@@ -11,11 +11,19 @@ function validateSubscriptionConfirmationRequest(body) {
   return null;
 }
 
-export async function sendSubscriptionConfirmationRest(req, res) {
+function sendJson(res, next, status, body) {
+  try {
+    res.status(status).json(body);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function sendSubscriptionConfirmationRest(req, res, next) {
   const validationError = validateSubscriptionConfirmationRequest(req.body);
 
   if (validationError) {
-    res.status(400).json({ error: validationError });
+    sendJson(res, next, 400, { error: validationError });
     return;
   }
 
@@ -23,8 +31,8 @@ export async function sendSubscriptionConfirmationRest(req, res) {
 
   try {
     await sendSubscriptionConfirmation(email.trim().toLowerCase(), token, repo.trim());
-    res.status(200).json({ status: 'sent' });
+    sendJson(res, next, 200, { status: 'sent' });
   } catch {
-    res.status(502).json({ error: 'Email delivery failed' });
+    sendJson(res, next, 502, { error: 'Email delivery failed' });
   }
 }

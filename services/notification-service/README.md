@@ -15,7 +15,7 @@ that knows about SMTP, Nodemailer, and email templates.
 ## gRPC
 
 The service exposes `notification.v1.NotificationService` on port `3003` by
-default.
+default. It uses `@connectrpc/connect-node` with the gRPC transport over HTTP/2.
 
 Unary RPC:
 
@@ -58,9 +58,12 @@ the consumer publishes a `saga.subscription-confirmation.succeeded` or
 handling it, so the main application's orchestrated saga can complete or
 compensate the subscription.
 
-The readiness endpoint verifies SMTP and PostgreSQL. The consumer restores its
-subscription after RabbitMQ channel loss. SIGTERM and SIGINT stop the HTTP
-server, consumer, broker connection, and database pool.
+The readiness endpoint verifies SMTP, PostgreSQL, and that the gRPC server is
+listening. The RabbitMQ consumer starts independently with retry, so synchronous
+gRPC delivery can become available even while the broker is temporarily
+unavailable. The consumer restores its subscription after RabbitMQ channel loss.
+SIGTERM and SIGINT stop the HTTP server, gRPC server, consumer, broker
+connection, and database pool.
 
 ## Local Start
 

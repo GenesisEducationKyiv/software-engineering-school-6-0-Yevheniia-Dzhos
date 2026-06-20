@@ -63,6 +63,17 @@ describe('notification service app', () => {
     expect(response.body).toEqual({ status: 'not ready' });
   });
 
+  it('reports not ready when gRPC is unavailable', async () => {
+    const response = await request(createApp({
+      verifyGrpcConnection: async () => {
+        throw new Error('gRPC unavailable');
+      }
+    })).get('/health/ready');
+
+    expect(response.status).toBe(503);
+    expect(response.body).toEqual({ status: 'not ready' });
+  });
+
   it('exposes request IDs and excludes probe endpoints from RED metrics', async () => {
     const app = createApp();
     const healthResponse = await request(app)

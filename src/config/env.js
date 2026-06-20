@@ -29,5 +29,9 @@ export const env = {
     'NOTIFICATION_SERVICE_GRPC_URL',
     'http://localhost:3003'
   ),
+  notificationServiceGrpcTimeoutMs: getPositiveIntegerEnv(
+    'NOTIFICATION_SERVICE_GRPC_TIMEOUT_MS',
+    10000
+  ),
   sagaApiToken: getOptionalEnv('SAGA_API_TOKEN', '')
 };

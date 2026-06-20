@@ -108,6 +108,15 @@ async function waitForSagaState(state, timeoutMs = 5000) {
   throw new Error(`Timed out waiting for saga state ${state}`);
 }
 
+async function countProcessedMessages(type) {
+  const result = await query(
+    'SELECT COUNT(*)::int AS count FROM processed_messages WHERE message_type = $1',
+    [type]
+  );
+
+  return result.rows[0].count;
+}
+
 describe('API integration endpoints', () => {
   beforeAll(async () => {
     githubServer = createGithubStub();
@@ -241,6 +250,9 @@ describe('API integration endpoints', () => {
     await expect(waitForSagaState('COMPLETED')).resolves.toMatchObject({
       state: 'COMPLETED'
     });
+    await expect(countProcessedMessages(
+      'notification.subscription-confirmation.send'
+    )).resolves.toBe(0);
   });
 
   it('POST /api/subscribe resends confirmation for an existing pending subscription', async () => {

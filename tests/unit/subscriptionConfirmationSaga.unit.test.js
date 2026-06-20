@@ -21,6 +21,7 @@ const subscriptionRepository = await import(
 );
 const sagaRepository = await import('../../src/modules/sagas/sagaRepository.js');
 const {
+  dispatchSubscriptionConfirmationSaga,
   handleSubscriptionConfirmationSagaReply,
   recoverTimedOutSubscriptionConfirmationSagas,
   sagaStates,
@@ -209,6 +210,67 @@ describe('subscription confirmation saga', () => {
       { error: 'Notification service unavailable', completed: true, expectedState: sagaStates.compensating }
     );
     expect(subscriptionRepository.deletePendingSubscription).toHaveBeenCalledWith(10);
+  });
+
+  it('does not compensate when completion fails after notification delivery', async () => {
+    const pendingSaga = {
+      id: 'saga-1',
+      type: subscriptionConfirmationSagaType,
+      state: sagaStates.notificationPending,
+      payload: {
+        email: 'user@example.com',
+        repo: 'owner/repo',
+        confirmToken: 'confirm-token',
+        subscriptionId: 10,
+        shouldCompensateSubscription: false
+      }
+    };
+    sagaRepository.updateSagaState
+      .mockResolvedValueOnce(pendingSaga)
+      .mockResolvedValueOnce(null);
+    sagaRepository.findSagaById.mockResolvedValue(pendingSaga);
+
+    await expect(dispatchSubscriptionConfirmationSaga({ id: 'saga-1' }))
+      .rejects.toThrow('Subscription confirmation saga completion conflict');
+
+    expect(sagaRepository.updateSagaState)
+      .toHaveBeenCalledTimes(2);
+    expect(subscriptionRepository.deletePendingSubscription).not.toHaveBeenCalled();
+  });
+
+  it('does not mask the original dispatch error when compensation fails', async () => {
+    const originalError = new Error('Notification gRPC unavailable');
+    const compensationError = new Error('Database unavailable');
+    const pendingSaga = {
+      id: 'saga-1',
+      type: subscriptionConfirmationSagaType,
+      state: sagaStates.notificationPending,
+      payload: {
+        email: 'user@example.com',
+        repo: 'owner/repo',
+        confirmToken: 'confirm-token',
+        subscriptionId: 10,
+        shouldCompensateSubscription: false
+      }
+    };
+    notifications.sendSubscriptionConfirmationGrpc.mockRejectedValue(originalError);
+    sagaRepository.updateSagaState
+      .mockResolvedValueOnce(pendingSaga)
+      .mockRejectedValueOnce(compensationError);
+    sagaRepository.findSagaById.mockResolvedValue(pendingSaga);
+
+    let error;
+    try {
+      await dispatchSubscriptionConfirmationSaga({ id: 'saga-1' });
+    } catch (caughtError) {
+      error = caughtError;
+    }
+
+    expect(error.message).toBe(originalError.message);
+    expect(error.cause).toEqual({
+      original: originalError,
+      compensation: compensationError
+    });
   });
 
   it('marks saga as completed after successful notification reply', async () => {

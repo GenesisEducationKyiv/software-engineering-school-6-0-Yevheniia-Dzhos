@@ -30,6 +30,7 @@ describe('notification REST client', () => {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: expect.any(AbortSignal),
         body: JSON.stringify({
           email: 'user@example.com',
           token: 'confirm-token-123',
@@ -79,6 +80,23 @@ describe('notification REST client', () => {
     )).rejects.toMatchObject({
       status: 502,
       message: 'Email delivery failed'
+    });
+  });
+
+  it('maps request timeouts to 502', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new Error('timeout'));
+    const client = createNotificationRestClient({
+      baseUrl: 'http://notification-service:3002',
+      fetchImpl
+    });
+
+    await expect(client.sendSubscriptionConfirmation(
+      'user@example.com',
+      'confirm-token-123',
+      'owner/repo'
+    )).rejects.toMatchObject({
+      status: 502,
+      message: 'Notification service unavailable'
     });
   });
 });

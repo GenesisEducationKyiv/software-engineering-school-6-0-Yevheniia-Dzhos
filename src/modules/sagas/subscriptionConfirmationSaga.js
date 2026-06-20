@@ -42,6 +42,35 @@ function isActiveSagaConflict(error) {
     && error?.constraint === 'idx_sagas_active_subscription_confirmation';
 }
 
+async function compensateWithoutMaskingOriginalError(sagaId, error) {
+  try {
+    await compensateSubscriptionConfirmationSaga(sagaId, error);
+  } catch (compensationError) {
+    throw new Error(error.message, {
+      cause: {
+        original: error,
+        compensation: compensationError
+      }
+    });
+  }
+
+  throw error;
+}
+
+async function completeAfterNotificationDelivery(sagaId) {
+  const completedSaga = await updateSagaStateOrReload(sagaId, sagaStates.completed, {
+    completed: true,
+    error: null,
+    expectedState: sagaStates.notificationPending
+  });
+
+  if (completedSaga?.state !== sagaStates.completed) {
+    throw new Error('Subscription confirmation saga completion conflict');
+  }
+
+  return completedSaga;
+}
+
 async function updateSagaStateOrReload(id, state, options) {
   const updated = await updateSagaState(id, state, options);
   return updated || findSagaById(id);
@@ -129,18 +158,11 @@ export async function dispatchSubscriptionConfirmationSaga(saga) {
       pendingSaga.payload.confirmToken,
       pendingSaga.payload.repo
     );
-
-    await updateSagaStateOrReload(pendingSaga.id, sagaStates.completed, {
-      completed: true,
-      error: null,
-      expectedState: sagaStates.notificationPending
-    });
   } catch (error) {
-    await compensateSubscriptionConfirmationSaga(saga.id, error);
-    throw error;
+    await compensateWithoutMaskingOriginalError(saga.id, error);
   }
 
-  return findSagaById(saga.id);
+  return completeAfterNotificationDelivery(saga.id);
 }
 
 export async function handleSubscriptionConfirmationSagaReply({

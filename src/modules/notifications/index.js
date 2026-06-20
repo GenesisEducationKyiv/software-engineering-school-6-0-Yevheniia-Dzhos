@@ -19,7 +19,8 @@ const publisher = createNotificationPublisher({
   logger
 });
 const grpcClient = createNotificationGrpcClient({
-  baseUrl: env.notificationServiceGrpcUrl
+  baseUrl: env.notificationServiceGrpcUrl,
+  timeoutMs: env.notificationServiceGrpcTimeoutMs
 });
 
 export async function sendSubscriptionConfirmation(email, token, repo, metadata = {}) {
