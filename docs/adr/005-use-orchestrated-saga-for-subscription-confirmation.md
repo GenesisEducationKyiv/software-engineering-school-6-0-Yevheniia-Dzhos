@@ -41,7 +41,9 @@ command, it publishes one of these reply events:
 - `saga.subscription-confirmation.failed`
 
 The main application consumes replies from the durable `saga.replies` queue and
-updates the Saga state:
+updates the Saga state. Saga replies have their own retry queue and dead-letter
+queue, so temporary database or orchestrator failures do not create a tight
+redelivery loop.
 
 - `STARTED`
 - `NOTIFICATION_PENDING`
@@ -53,6 +55,9 @@ updates the Saga state:
 If a newly created pending subscription cannot receive its confirmation email,
 the orchestrator compensates the local subscription step by deleting that
 pending subscription.
+
+The orchestrator also runs a periodic recovery job for Sagas that remain in
+`NOTIFICATION_PENDING` or `COMPENSATING` longer than the configured timeout.
 
 ## Rationale
 
@@ -85,8 +90,12 @@ demonstrate.
 - Saga progress is persisted in PostgreSQL and can be inspected.
 - The notification service stays focused on email delivery.
 - Failed email delivery can trigger an explicit compensation step.
-- Duplicate Saga replies are safe because terminal Saga states are ignored.
+- Duplicate Saga replies are safe because reply IDs are stored in
+  `processed_saga_replies` and Saga state transitions use compare-and-swap
+  checks.
 - RabbitMQ retries and dead-letter queues continue to handle transient failures.
+- The main HTTP API can start even if RabbitMQ is temporarily unavailable; the
+  Saga reply consumer retries connection in the background.
 
 ### Negative
 
@@ -96,6 +105,7 @@ demonstrate.
   gains more steps.
 - A crash after SMTP delivery but before recording the processed message can
   still produce a duplicate email on retry.
-- There is no timeout scanner for Sagas that remain in `NOTIFICATION_PENDING`
-  for too long. A production version should periodically detect such Sagas and
-  either compensate them or mark them for manual review.
+- The main application and notification service still share one PostgreSQL
+  deployment in this educational project. A production split would give the
+  notification service its own database and use integration events/outbox
+  records between service-owned stores.

@@ -4,8 +4,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../src/modules/sagas/subscriptionConfirmationSaga.js', () => ({
   handleSubscriptionConfirmationSagaReply: vi.fn()
 }));
+vi.mock('../../src/modules/sagas/sagaRepository.js', () => ({
+  hasProcessedSagaReply: vi.fn(),
+  recordProcessedSagaReply: vi.fn()
+}));
 
 const saga = await import('../../src/modules/sagas/subscriptionConfirmationSaga.js');
+const sagaRepository = await import('../../src/modules/sagas/sagaRepository.js');
 const { createSagaReplyConsumer } = await import(
   '../../src/modules/sagas/sagaReplyConsumer.js'
 );
@@ -19,6 +24,10 @@ const topology = {
   deadLetterQueue: 'notifications.dead-letter',
   sagaReplyExchange: 'saga.replies',
   sagaReplyQueue: 'saga.replies',
+  sagaReplyRetryExchange: 'saga.replies.retry',
+  sagaReplyRetryQueue: 'saga.replies.retry',
+  sagaReplyDeadLetterExchange: 'saga.replies.dead-letter',
+  sagaReplyDeadLetterQueue: 'saga.replies.dead-letter',
   retryTtlMs: 5000,
   maxAttempts: 3
 };
@@ -30,6 +39,8 @@ function createChannel() {
     bindQueue: vi.fn().mockResolvedValue(undefined),
     prefetch: vi.fn().mockResolvedValue(undefined),
     consume: vi.fn().mockResolvedValue({ consumerTag: 'consumer-1' }),
+    publish: vi.fn().mockReturnValue(true),
+    waitForConfirms: vi.fn().mockResolvedValue(undefined),
     ack: vi.fn(),
     nack: vi.fn(),
     cancel: vi.fn().mockResolvedValue(undefined),
@@ -55,6 +66,7 @@ function createReply(type, sagaId = 'saga-1') {
 describe('saga reply consumer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sagaRepository.hasProcessedSagaReply.mockResolvedValue(false);
   });
 
   it('consumes successful saga replies and acknowledges them', async () => {
@@ -81,6 +93,12 @@ describe('saga reply consumer', () => {
         sagaId: 'saga-1',
         succeeded: true
       });
+    expect(sagaRepository.recordProcessedSagaReply)
+      .toHaveBeenCalledWith({
+        replyId: 'message-1:saga.subscription-confirmation.succeeded',
+        sagaId: 'saga-1',
+        replyType: 'saga.subscription-confirmation.succeeded'
+      });
     expect(channel.ack).toHaveBeenCalledTimes(1);
     expect(channel.nack).not.toHaveBeenCalled();
   });
@@ -97,6 +115,7 @@ describe('saga reply consumer', () => {
     await consumer.start();
     await channel.consume.mock.calls[0][1]({
       content: Buffer.from(JSON.stringify({
+        id: 'reply-1',
         type: 'saga.subscription-confirmation.failed',
         sagaId: 'saga-1',
         error: 'SMTP unavailable'
@@ -134,7 +153,7 @@ describe('saga reply consumer', () => {
     expect(channel.nack).not.toHaveBeenCalled();
   });
 
-  it('requeues replies when saga handling fails', async () => {
+  it('sends failed saga reply handling through the retry queue', async () => {
     saga.handleSubscriptionConfirmationSagaReply
       .mockRejectedValue(new Error('Database unavailable'));
     const channel = createChannel();
@@ -150,6 +169,34 @@ describe('saga reply consumer', () => {
     await channel.consume.mock.calls[0][1](message);
 
     expect(channel.ack).not.toHaveBeenCalled();
-    expect(channel.nack).toHaveBeenCalledWith(message, false, true);
+    expect(channel.nack).toHaveBeenCalledWith(message, false, false);
+  });
+
+  it('moves saga replies to dead-letter exchange after final attempt', async () => {
+    saga.handleSubscriptionConfirmationSagaReply
+      .mockRejectedValue(new Error('Database unavailable'));
+    const channel = createChannel();
+    const consumer = createSagaReplyConsumer({
+      brokerClient: { createConfirmChannel: vi.fn().mockResolvedValue(channel) },
+      topology,
+      reconnectDelayMs: 1000,
+      logger: { error: vi.fn() }
+    });
+
+    await consumer.start();
+    const message = createReply('saga.subscription-confirmation.succeeded');
+    message.fields = { routingKey: 'saga.subscription-confirmation.succeeded' };
+    message.properties.headers = {
+      'x-death': [{ queue: topology.sagaReplyQueue, count: 2 }]
+    };
+    await channel.consume.mock.calls[0][1](message);
+
+    expect(channel.publish).toHaveBeenCalledWith(
+      'saga.replies.dead-letter',
+      'saga.subscription-confirmation.succeeded',
+      message.content,
+      message.properties
+    );
+    expect(channel.ack).toHaveBeenCalledWith(message);
   });
 });

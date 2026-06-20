@@ -12,8 +12,15 @@ export async function findActiveSubscription(email, repositoryId) {
     return result.rows[0] || null;
 }
 
-export async function createSubscriptionRecord(email, repositoryId, confirmToken, unsubscribeToken) {
-    const result = await query(
+export async function createSubscriptionRecord(
+    email,
+    repositoryId,
+    confirmToken,
+    unsubscribeToken,
+    client
+) {
+    const executor = client || { query };
+    const result = await executor.query(
         `INSERT INTO subscriptions (email, repository_id, confirm_token, unsubscribe_token)
      VALUES ($1, $2, $3, $4)
      RETURNING *`,

@@ -22,6 +22,10 @@ const config = {
   deadLetterQueue: 'notifications.dead-letter',
   sagaReplyExchange: 'saga.replies',
   sagaReplyQueue: 'saga.replies',
+  sagaReplyRetryExchange: 'saga.replies.retry',
+  sagaReplyRetryQueue: 'saga.replies.retry',
+  sagaReplyDeadLetterExchange: 'saga.replies.dead-letter',
+  sagaReplyDeadLetterQueue: 'saga.replies.dead-letter',
   retryTtlMs: 5000
 };
 
@@ -46,7 +50,7 @@ describe('notification messaging topology', () => {
 
     await assertNotificationTopology(channel, config);
 
-    expect(channel.assertExchange).toHaveBeenCalledTimes(4);
+    expect(channel.assertExchange).toHaveBeenCalledTimes(6);
     expect(channel.assertQueue).toHaveBeenCalledWith('notifications', {
       durable: true,
       arguments: {
@@ -64,6 +68,19 @@ describe('notification messaging topology', () => {
       durable: true
     });
     expect(channel.assertQueue).toHaveBeenCalledWith('saga.replies', {
+      durable: true,
+      arguments: {
+        'x-dead-letter-exchange': 'saga.replies.retry'
+      }
+    });
+    expect(channel.assertQueue).toHaveBeenCalledWith('saga.replies.retry', {
+      durable: true,
+      arguments: {
+        'x-message-ttl': 5000,
+        'x-dead-letter-exchange': 'saga.replies'
+      }
+    });
+    expect(channel.assertQueue).toHaveBeenCalledWith('saga.replies.dead-letter', {
       durable: true
     });
     expect(channel.bindQueue).toHaveBeenCalledWith(
@@ -71,6 +88,6 @@ describe('notification messaging topology', () => {
       'saga.replies',
       'saga.#'
     );
-    expect(channel.bindQueue).toHaveBeenCalledTimes(4);
+    expect(channel.bindQueue).toHaveBeenCalledTimes(6);
   });
 });

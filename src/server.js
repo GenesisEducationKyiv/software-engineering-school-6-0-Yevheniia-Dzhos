@@ -8,6 +8,7 @@ import {
 import { closeNotificationPublisher } from './modules/notifications/index.js';
 import {
   closeSagaReplyConsumer,
+  startSagaRecovery,
   startSagaReplyConsumer
 } from './modules/sagas/index.js';
 import { logger } from './modules/observability/index.js';
@@ -18,7 +19,8 @@ import {
 
 const app = createApp();
 
-await startSagaReplyConsumer();
+startSagaReplyConsumer();
+startSagaRecovery();
 
 const server = app.listen(env.port, () => {
   logger.info('Server started', { port: env.port });

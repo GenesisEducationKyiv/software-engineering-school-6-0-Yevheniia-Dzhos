@@ -32,6 +32,22 @@ export function getMessagingEnv() {
       'SAGA_REPLY_QUEUE',
       'saga.replies'
     ),
+    sagaReplyRetryExchange: getOptionalEnv(
+      'SAGA_REPLY_RETRY_EXCHANGE',
+      'saga.replies.retry'
+    ),
+    sagaReplyRetryQueue: getOptionalEnv(
+      'SAGA_REPLY_RETRY_QUEUE',
+      'saga.replies.retry'
+    ),
+    sagaReplyDeadLetterExchange: getOptionalEnv(
+      'SAGA_REPLY_DLQ_EXCHANGE',
+      'saga.replies.dead-letter'
+    ),
+    sagaReplyDeadLetterQueue: getOptionalEnv(
+      'SAGA_REPLY_DLQ',
+      'saga.replies.dead-letter'
+    ),
     notificationRetryTtlMs: getPositiveIntegerEnv(
       'NOTIFICATION_RETRY_TTL_MS',
       5000
@@ -43,6 +59,14 @@ export function getMessagingEnv() {
     brokerReconnectDelayMs: getPositiveIntegerEnv(
       'BROKER_RECONNECT_DELAY_MS',
       5000
+    ),
+    sagaTimeoutMs: getPositiveIntegerEnv(
+      'SAGA_TIMEOUT_MS',
+      600000
+    ),
+    sagaRecoveryIntervalMs: getPositiveIntegerEnv(
+      'SAGA_RECOVERY_INTERVAL_MS',
+      60000
     )
   };
 }

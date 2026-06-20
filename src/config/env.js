@@ -19,5 +19,7 @@ export const env = {
   githubRequestTimeoutMs: getPositiveIntegerEnv('GITHUB_REQUEST_TIMEOUT_MS', 10000),
 
   scanIntervalMs: getPositiveIntegerEnv('SCAN_INTERVAL_MS', 300000),
-  scanChunkSize: getPositiveIntegerEnv('SCAN_CHUNK_SIZE', 5)
+  scanChunkSize: getPositiveIntegerEnv('SCAN_CHUNK_SIZE', 5),
+
+  sagaApiToken: getOptionalEnv('SAGA_API_TOKEN', '')
 };

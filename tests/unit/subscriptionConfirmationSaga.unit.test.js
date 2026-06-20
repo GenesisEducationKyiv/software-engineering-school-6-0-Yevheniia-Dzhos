@@ -8,7 +8,10 @@ vi.mock('../../src/modules/subscriptions/subscriptionRepository.js', () => ({
 }));
 vi.mock('../../src/modules/sagas/sagaRepository.js', () => ({
   createSaga: vi.fn(),
+  createSagaWithClient: vi.fn(),
+  findActiveSagaBySubscriptionId: vi.fn(),
   findSagaById: vi.fn(),
+  listTimedOutSagas: vi.fn(),
   updateSagaState: vi.fn()
 }));
 
@@ -19,6 +22,7 @@ const subscriptionRepository = await import(
 const sagaRepository = await import('../../src/modules/sagas/sagaRepository.js');
 const {
   handleSubscriptionConfirmationSagaReply,
+  recoverTimedOutSubscriptionConfirmationSagas,
   sagaStates,
   startSubscriptionConfirmationSaga,
   subscriptionConfirmationSagaType
@@ -27,9 +31,49 @@ const {
 describe('subscription confirmation saga', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sagaRepository.findActiveSagaBySubscriptionId.mockResolvedValue(null);
+  });
+
+  it('reuses an active saga for the same pending subscription', async () => {
+    sagaRepository.findActiveSagaBySubscriptionId.mockResolvedValue({
+      id: 'existing-saga',
+      type: subscriptionConfirmationSagaType,
+      state: sagaStates.notificationPending,
+      payload: { subscriptionId: 10 }
+    });
+
+    await expect(startSubscriptionConfirmationSaga({
+      email: 'user@example.com',
+      repo: 'owner/repo',
+      confirmToken: 'confirm-token',
+      subscriptionId: 10
+    })).resolves.toEqual({ sagaId: 'existing-saga' });
+
+    expect(sagaRepository.createSaga).not.toHaveBeenCalled();
+    expect(notifications.sendSubscriptionConfirmation).not.toHaveBeenCalled();
   });
 
   it('creates saga state and publishes a notification command with saga id', async () => {
+    sagaRepository.createSaga.mockImplementation(async (saga) => saga);
+    sagaRepository.updateSagaState.mockImplementation(async (id, state) => ({
+      id,
+      type: subscriptionConfirmationSagaType,
+      state,
+      payload: {
+        email: 'user@example.com',
+        repo: 'owner/repo',
+        confirmToken: 'confirm-token',
+        subscriptionId: 10,
+        shouldCompensateSubscription: true
+      }
+    }));
+    sagaRepository.findSagaById.mockResolvedValue({
+      id: 'saga-1',
+      type: subscriptionConfirmationSagaType,
+      state: sagaStates.notificationPending,
+      payload: {}
+    });
+
     await startSubscriptionConfirmationSaga({
       email: 'user@example.com',
       repo: 'owner/repo',
@@ -52,6 +96,7 @@ describe('subscription confirmation saga', () => {
     });
     expect(sagaRepository.updateSagaState)
       .toHaveBeenCalledWith(createdSaga.id, sagaStates.notificationPending, {
+        error: null,
         expectedState: sagaStates.started
       });
     expect(notifications.sendSubscriptionConfirmation)
@@ -76,8 +121,25 @@ describe('subscription confirmation saga', () => {
     expect(sagaRepository.updateSagaState)
       .toHaveBeenCalledWith('saga-1', sagaStates.completed, {
         completed: true,
+        error: null,
         expectedState: sagaStates.notificationPending
       });
+  });
+
+  it('ignores success replies outside NOTIFICATION_PENDING state', async () => {
+    sagaRepository.findSagaById.mockResolvedValue({
+      id: 'saga-1',
+      type: subscriptionConfirmationSagaType,
+      state: sagaStates.compensating,
+      payload: {}
+    });
+
+    await handleSubscriptionConfirmationSagaReply({
+      sagaId: 'saga-1',
+      succeeded: true
+    });
+
+    expect(sagaRepository.updateSagaState).not.toHaveBeenCalled();
   });
 
   it('compensates a newly created pending subscription after failed notification reply', async () => {
@@ -122,5 +184,88 @@ describe('subscription confirmation saga', () => {
         expectedState: sagaStates.compensating
       });
     expect(sagaRepository.findSagaById).toHaveBeenCalledTimes(1);
+  });
+
+  it('marks saga as failed when compensation action fails', async () => {
+    const saga = {
+      id: 'saga-1',
+      type: subscriptionConfirmationSagaType,
+      state: sagaStates.notificationPending,
+      payload: {
+        subscriptionId: 10,
+        shouldCompensateSubscription: true
+      }
+    };
+    sagaRepository.findSagaById.mockResolvedValue({ ...saga });
+    sagaRepository.updateSagaState
+      .mockResolvedValueOnce({
+        ...saga,
+        state: sagaStates.compensating
+      })
+      .mockResolvedValueOnce({
+        ...saga,
+        state: sagaStates.failed
+      });
+    subscriptionRepository.deletePendingSubscription
+      .mockRejectedValue(new Error('Database unavailable'));
+
+    await handleSubscriptionConfirmationSagaReply({
+      sagaId: 'saga-1',
+      succeeded: false,
+      error: 'SMTP unavailable'
+    });
+
+    expect(sagaRepository.updateSagaState)
+      .toHaveBeenCalledWith('saga-1', sagaStates.failed, {
+        error: 'Database unavailable',
+        completed: true,
+        expectedState: sagaStates.compensating
+      });
+  });
+
+  it('continues timed-out saga recovery after one saga fails', async () => {
+    const firstSaga = {
+      id: 'saga-1',
+      type: subscriptionConfirmationSagaType,
+      state: sagaStates.notificationPending,
+      error: 'SMTP refused',
+      payload: {}
+    };
+    const secondSaga = {
+      id: 'saga-2',
+      type: subscriptionConfirmationSagaType,
+      state: sagaStates.notificationPending,
+      error: null,
+      payload: {}
+    };
+    sagaRepository.listTimedOutSagas.mockResolvedValue([firstSaga, secondSaga]);
+    sagaRepository.updateSagaState
+      .mockRejectedValueOnce(new Error('Temporary database error'))
+      .mockResolvedValueOnce({
+        ...secondSaga,
+        state: sagaStates.compensating
+      })
+      .mockResolvedValueOnce({
+        ...secondSaga,
+        state: sagaStates.failed
+      });
+
+    const result = await recoverTimedOutSubscriptionConfirmationSagas();
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({
+      id: 'saga-1',
+      error: 'Temporary database error'
+    });
+    expect(sagaRepository.updateSagaState)
+      .toHaveBeenCalledWith('saga-1', sagaStates.compensating, {
+        error: 'Subscription confirmation saga timed out after previous error: SMTP refused',
+        expectedState: sagaStates.notificationPending
+      });
+    expect(sagaRepository.updateSagaState)
+      .toHaveBeenCalledWith('saga-2', sagaStates.compensating, {
+        error: 'Subscription confirmation saga timed out',
+        expectedState: sagaStates.notificationPending
+      });
   });
 });

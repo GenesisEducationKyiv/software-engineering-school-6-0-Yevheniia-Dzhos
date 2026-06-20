@@ -7,8 +7,11 @@ import {
 
 export async function subscribe(req, res, next) {
   try {
-    await createSubscription(req.body || {});
-    res.status(200).json({ message: 'Subscription successful. Confirmation email sent.' });
+    const result = await createSubscription(req.body || {});
+    res.status(200).json({
+      message: 'Subscription successful. Confirmation email sent.',
+      sagaId: result?.sagaId
+    });
   } catch (error) {
     next(error);
   }

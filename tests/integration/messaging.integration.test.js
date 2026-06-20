@@ -14,6 +14,10 @@ const config = {
   deadLetterQueue: 'notifications.integration.dead-letter',
   sagaReplyExchange: 'saga.integration.replies',
   sagaReplyQueue: 'saga.integration.replies',
+  sagaReplyRetryExchange: 'saga.integration.replies.retry',
+  sagaReplyRetryQueue: 'saga.integration.replies.retry',
+  sagaReplyDeadLetterExchange: 'saga.integration.replies.dead-letter',
+  sagaReplyDeadLetterQueue: 'saga.integration.replies.dead-letter',
   retryTtlMs: 100
 };
 
@@ -38,6 +42,8 @@ describe('RabbitMQ notification topology', () => {
     await channel.purgeQueue(config.retryQueue);
     await channel.purgeQueue(config.deadLetterQueue);
     await channel.purgeQueue(config.sagaReplyQueue);
+    await channel.purgeQueue(config.sagaReplyRetryQueue);
+    await channel.purgeQueue(config.sagaReplyDeadLetterQueue);
   });
 
   afterAll(async () => {
@@ -57,6 +63,12 @@ describe('RabbitMQ notification topology', () => {
     });
     await expect(channel.checkQueue(config.sagaReplyQueue)).resolves.toMatchObject({
       queue: config.sagaReplyQueue
+    });
+    await expect(channel.checkQueue(config.sagaReplyRetryQueue)).resolves.toMatchObject({
+      queue: config.sagaReplyRetryQueue
+    });
+    await expect(channel.checkQueue(config.sagaReplyDeadLetterQueue)).resolves.toMatchObject({
+      queue: config.sagaReplyDeadLetterQueue
     });
   });
 

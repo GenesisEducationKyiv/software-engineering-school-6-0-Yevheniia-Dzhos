@@ -143,50 +143,61 @@ export function createNotificationConsumer({
       return;
     }
 
-    try {
-      if (!(await hasProcessedMessage(command.id))) {
+    if (!(await hasProcessedMessage(command.id))) {
+      try {
         await handler(command.payload);
-        await recordProcessedMessage(command.id, command.type);
-      }
-    } catch (error) {
-      logger.error('Notification command handling failed', {
-        messageId: message.properties.messageId,
-        type: message.properties.type,
-        attempt: getAttemptCount(message),
-        error
-      });
+      } catch (error) {
+        logger.error('Notification command handling failed', {
+          messageId: message.properties.messageId,
+          type: message.properties.type,
+          attempt: getAttemptCount(message),
+          error
+        });
 
-      if (getAttemptCount(message) >= topology.maxAttempts) {
-        try {
-          await publishSagaReply(
-            command,
-            deliveryChannel,
-            sagaReplyEvents.subscriptionConfirmationFailed,
-            error
-          );
-        } catch (replyError) {
-          logger.error('Notification failure reply publishing failed', {
-            messageId: message.properties.messageId,
-            type: message.properties.type,
-            error: replyError
-          });
+        if (getAttemptCount(message) >= topology.maxAttempts) {
+          try {
+            await publishSagaReply(
+              command,
+              deliveryChannel,
+              sagaReplyEvents.subscriptionConfirmationFailed,
+              error
+            );
+          } catch (replyError) {
+            logger.error('Notification failure reply publishing failed', {
+              messageId: message.properties.messageId,
+              type: message.properties.type,
+              error: replyError
+            });
+            deliveryChannel.nack(message, false, false);
+            return;
+          }
+
+          try {
+            await moveToDeadLetter(message, deliveryChannel);
+          } catch (deadLetterError) {
+            logger.error('Notification command dead-lettering failed', {
+              messageId: message.properties.messageId,
+              type: message.properties.type,
+              error: deadLetterError
+            });
+            deliveryChannel.nack(message, false, false);
+          }
+          return;
         }
 
-        try {
-          await moveToDeadLetter(message, deliveryChannel);
-        } catch (deadLetterError) {
-          logger.error('Notification command dead-lettering failed', {
-            messageId: message.properties.messageId,
-            type: message.properties.type,
-            error: deadLetterError
-          });
-          deliveryChannel.nack(message, false, false);
-        }
+        deliveryChannel.nack(message, false, false);
         return;
       }
 
-      deliveryChannel.nack(message, false, false);
-      return;
+      try {
+        await recordProcessedMessage(command.id, command.type);
+      } catch (error) {
+        logger.error('Processed notification message recording failed', {
+          messageId: message.properties.messageId,
+          type: message.properties.type,
+          error
+        });
+      }
     }
 
     try {

@@ -1,4 +1,5 @@
 import { AppError } from '../../utils/errors.js';
+import { withTransaction } from '../../db/client.js';
 import { trackRepository } from '../releaseTracking/index.js';
 import {
   normalizeSubscriptionInput,
@@ -8,7 +9,11 @@ import {
   validateToken
 } from './subscriptionInputService.js';
 import { createSubscriptionTokens } from './subscriptionTokenService.js';
-import { startSubscriptionConfirmationSaga } from '../sagas/subscriptionConfirmationSaga.js';
+import {
+  createSubscriptionConfirmationSaga,
+  dispatchSubscriptionConfirmationSaga,
+  startSubscriptionConfirmationSaga
+} from '../sagas/subscriptionConfirmationSaga.js';
 import {
   findActiveSubscription,
   createSubscriptionRecord,
@@ -29,13 +34,12 @@ export async function createSubscription(input) {
 
   if (existing) {
     if (!existing.confirmed) {
-      await startSubscriptionConfirmationSaga({
+      return startSubscriptionConfirmationSaga({
         email,
         repo,
         confirmToken: existing.confirm_token,
         subscriptionId: existing.id
       });
-      return;
     }
 
     throw new AppError(409, 'Email already subscribed to this repository');
@@ -43,20 +47,28 @@ export async function createSubscription(input) {
 
   const { confirmToken, unsubscribeToken } = createSubscriptionTokens();
 
-  const subscription = await createSubscriptionRecord(
-    email,
-    repository.id,
-    confirmToken,
-    unsubscribeToken
-  );
+  const saga = await withTransaction(async (client) => {
+    const subscription = await createSubscriptionRecord(
+      email,
+      repository.id,
+      confirmToken,
+      unsubscribeToken,
+      client
+    );
 
-  await startSubscriptionConfirmationSaga({
-    email,
-    repo,
-    confirmToken,
-    subscriptionId: subscription.id,
-    shouldCompensateSubscription: true
+    return createSubscriptionConfirmationSaga({
+      email,
+      repo,
+      confirmToken,
+      subscriptionId: subscription.id,
+      shouldCompensateSubscription: true,
+      client
+    });
   });
+
+  await dispatchSubscriptionConfirmationSaga(saga);
+
+  return { sagaId: saga.id };
 }
 
 export async function confirmSubscription(token) {

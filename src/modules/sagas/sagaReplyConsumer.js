@@ -2,6 +2,10 @@ import {
   assertNotificationTopology,
   sagaReplyEvents
 } from '../messaging/topology.js';
+import {
+  hasProcessedSagaReply,
+  recordProcessedSagaReply
+} from './sagaRepository.js';
 import { handleSubscriptionConfirmationSagaReply } from './subscriptionConfirmationSaga.js';
 
 const handlers = {
@@ -45,6 +49,25 @@ export function createSagaReplyConsumer({
     }, reconnectDelayMs);
   }
 
+  function getAttemptCount(message) {
+    const death = message.properties.headers?.['x-death']?.find((entry) => {
+      return entry.queue === topology.sagaReplyQueue;
+    });
+
+    return Number(death?.count || 0) + 1;
+  }
+
+  async function moveToDeadLetter(message, deliveryChannel) {
+    deliveryChannel.publish(
+      topology.sagaReplyDeadLetterExchange,
+      message.fields.routingKey || message.properties.type,
+      message.content,
+      message.properties
+    );
+    await deliveryChannel.waitForConfirms();
+    deliveryChannel.ack(message);
+  }
+
   async function handleMessage(message, deliveryChannel) {
     if (!message) return;
 
@@ -63,7 +86,7 @@ export function createSagaReplyConsumer({
 
     const handler = reply && handlers[reply.type];
 
-    if (!handler || !reply.sagaId) {
+    if (!handler || !reply.sagaId || !reply.id) {
       logger.error('Invalid saga reply', {
         messageId: message.properties.messageId,
         type: reply?.type
@@ -73,14 +96,39 @@ export function createSagaReplyConsumer({
     }
 
     try {
+      if (await hasProcessedSagaReply(reply.id)) {
+        deliveryChannel.ack(message);
+        return;
+      }
+
       await handler(reply);
+      await recordProcessedSagaReply({
+        replyId: reply.id,
+        sagaId: reply.sagaId,
+        replyType: reply.type
+      });
       deliveryChannel.ack(message);
     } catch (error) {
       logger.error('Saga reply handling failed', {
         messageId: message.properties.messageId,
+        attempt: getAttemptCount(message),
         error
       });
-      deliveryChannel.nack(message, false, true);
+
+      if (getAttemptCount(message) >= topology.maxAttempts) {
+        try {
+          await moveToDeadLetter(message, deliveryChannel);
+        } catch (deadLetterError) {
+          logger.error('Saga reply dead-lettering failed', {
+            messageId: message.properties.messageId,
+            error: deadLetterError
+          });
+          deliveryChannel.nack(message, false, false);
+        }
+        return;
+      }
+
+      deliveryChannel.nack(message, false, false);
     }
   }
 
