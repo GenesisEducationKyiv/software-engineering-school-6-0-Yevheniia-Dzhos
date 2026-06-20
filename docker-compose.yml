@@ -70,6 +70,7 @@ services:
     restart: unless-stopped
     ports:
       - "3002:3002"
+      - "3003:3003"
     depends_on:
       mailhog:
         condition: service_started
@@ -96,6 +97,7 @@ services:
       NOTIFICATION_MAX_ATTEMPTS: ${NOTIFICATION_MAX_ATTEMPTS:-3}
       BROKER_RECONNECT_DELAY_MS: ${BROKER_RECONNECT_DELAY_MS:-5000}
       NOTIFICATION_SERVICE_PORT: ${NOTIFICATION_SERVICE_PORT:-3002}
+      NOTIFICATION_SERVICE_GRPC_PORT: ${NOTIFICATION_SERVICE_GRPC_PORT:-3003}
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
       SMTP_HOST: ${SMTP_HOST:-mailhog}
       SMTP_PORT: ${SMTP_PORT:-1025}

@@ -11,6 +11,7 @@ dotenv.config();
 
 export const env = {
   port: getPortEnv('NOTIFICATION_SERVICE_PORT', 3002),
+  grpcPort: getPortEnv('NOTIFICATION_SERVICE_GRPC_PORT', 3003),
   databaseUrl: getRequiredEnv('DATABASE_URL'),
   ...getMessagingEnv(),
   appBaseUrl: getOptionalEnv('APP_BASE_URL', 'http://localhost:3000'),
