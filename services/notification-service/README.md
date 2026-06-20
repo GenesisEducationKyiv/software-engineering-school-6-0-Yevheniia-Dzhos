@@ -10,6 +10,27 @@ that knows about SMTP, Nodemailer, and email templates.
 - `GET /health/live`
 - `GET /health/ready`
 - `GET /metrics`
+- `POST /api/notifications/subscription-confirmation`
+
+## gRPC
+
+The service exposes `notification.v1.NotificationService` on port `3003` by
+default.
+
+Unary RPC:
+
+```text
+SendSubscriptionConfirmation(SendSubscriptionConfirmationRequest)
+```
+
+The protobuf contract is defined in:
+
+```text
+proto/notification/v1/notification.proto
+```
+
+`INVALID_ARGUMENT` is returned for invalid email, token, or repository input.
+`UNAVAILABLE` is returned when email delivery fails.
 
 ## Message Consumer
 
@@ -49,5 +70,6 @@ Set the RabbitMQ, SMTP, and application URL environment variables, then run:
 npm run notification:start
 ```
 
-The service listens on port `3002` by default.
+The HTTP service listens on port `3002` by default.
+The gRPC service listens on port `3003` by default.
 It writes structured JSON logs and exposes Prometheus RED metrics for HTTP traffic.

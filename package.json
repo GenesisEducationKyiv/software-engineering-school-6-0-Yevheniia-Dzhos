@@ -21,6 +21,7 @@
     "proto:lint": "node scripts/run-buf.mjs lint",
     "proto:generate": "node scripts/run-buf.mjs generate",
     "proto:check": "npm run proto:lint && npm run proto:generate",
+    "benchmark:notification-transport": "node scripts/benchmark-notification-transport.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
