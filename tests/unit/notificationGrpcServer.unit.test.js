@@ -2,10 +2,15 @@ import { Code, ConnectError, createClient } from '@connectrpc/connect';
 import { createGrpcTransport } from '@connectrpc/connect-node';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NotificationService } from '../../src/generated/notification/v1/notification_pb.js';
-import {
+
+vi.mock('../../services/notification-service/src/notificationService.js', () => ({
+  sendSubscriptionConfirmation: vi.fn()
+}));
+
+const {
   createNotificationGrpcHandlers,
   createNotificationGrpcServer
-} from '../../services/notification-service/src/grpcServer.js';
+} = await import('../../services/notification-service/src/grpcServer.js');
 
 describe('notification gRPC server', () => {
   const notificationService = {
