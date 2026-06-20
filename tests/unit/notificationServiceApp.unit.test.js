@@ -7,9 +7,15 @@ vi.mock('../../services/notification-service/src/emailClient.js', () => ({
 vi.mock('../../services/notification-service/src/database.js', () => ({
   verifyDatabaseConnection: vi.fn()
 }));
+vi.mock('../../services/notification-service/src/notificationService.js', () => ({
+  sendSubscriptionConfirmation: vi.fn()
+}));
 
 const emailClient = await import('../../services/notification-service/src/emailClient.js');
 const database = await import('../../services/notification-service/src/database.js');
+const notificationService = await import(
+  '../../services/notification-service/src/notificationService.js'
+);
 const { createApp } = await import('../../services/notification-service/src/app.js');
 
 describe('notification service app', () => {
@@ -68,5 +74,50 @@ describe('notification service app', () => {
     expect(metricsResponse.status).toBe(200);
     expect(metricsResponse.text).toContain('# HELP http_requests_total');
     expect(metricsResponse.text).not.toContain('route="/health"');
+  });
+
+  it('sends subscription confirmations through the REST endpoint', async () => {
+    const response = await request(createApp())
+      .post('/api/notifications/subscription-confirmation')
+      .send({
+        email: 'User@Example.com',
+        token: 'confirm-token-123',
+        repo: 'owner/repo'
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ status: 'sent' });
+    expect(notificationService.sendSubscriptionConfirmation)
+      .toHaveBeenCalledWith('user@example.com', 'confirm-token-123', 'owner/repo');
+  });
+
+  it('validates subscription confirmation REST requests', async () => {
+    const response = await request(createApp())
+      .post('/api/notifications/subscription-confirmation')
+      .send({
+        email: 'bad',
+        token: 'short',
+        repo: 'bad'
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: 'Invalid or missing field: email' });
+    expect(notificationService.sendSubscriptionConfirmation).not.toHaveBeenCalled();
+  });
+
+  it('maps subscription confirmation delivery failures to 502', async () => {
+    notificationService.sendSubscriptionConfirmation
+      .mockRejectedValue(new Error('SMTP unavailable'));
+
+    const response = await request(createApp())
+      .post('/api/notifications/subscription-confirmation')
+      .send({
+        email: 'user@example.com',
+        token: 'confirm-token-123',
+        repo: 'owner/repo'
+      });
+
+    expect(response.status).toBe(502);
+    expect(response.body).toEqual({ error: 'Email delivery failed' });
   });
 });

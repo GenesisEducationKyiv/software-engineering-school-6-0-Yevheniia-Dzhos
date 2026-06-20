@@ -21,5 +21,9 @@ export const env = {
   scanIntervalMs: getPositiveIntegerEnv('SCAN_INTERVAL_MS', 300000),
   scanChunkSize: getPositiveIntegerEnv('SCAN_CHUNK_SIZE', 5),
 
+  notificationServiceUrl: getOptionalEnv(
+    'NOTIFICATION_SERVICE_URL',
+    'http://localhost:3002'
+  ),
   sagaApiToken: getOptionalEnv('SAGA_API_TOKEN', '')
 };
