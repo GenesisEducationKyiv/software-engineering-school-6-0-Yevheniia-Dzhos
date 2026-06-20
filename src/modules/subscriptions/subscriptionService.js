@@ -8,7 +8,7 @@ import {
   validateToken
 } from './subscriptionInputService.js';
 import { createSubscriptionTokens } from './subscriptionTokenService.js';
-import { sendSubscriptionConfirmation } from '../notifications/index.js';
+import { startSubscriptionConfirmationSaga } from '../sagas/subscriptionConfirmationSaga.js';
 import {
   findActiveSubscription,
   createSubscriptionRecord,
@@ -29,7 +29,12 @@ export async function createSubscription(input) {
 
   if (existing) {
     if (!existing.confirmed) {
-      await sendSubscriptionConfirmation(email, existing.confirm_token, repo);
+      await startSubscriptionConfirmationSaga({
+        email,
+        repo,
+        confirmToken: existing.confirm_token,
+        subscriptionId: existing.id
+      });
       return;
     }
 
@@ -38,14 +43,20 @@ export async function createSubscription(input) {
 
   const { confirmToken, unsubscribeToken } = createSubscriptionTokens();
 
-  await createSubscriptionRecord(
+  const subscription = await createSubscriptionRecord(
     email,
     repository.id,
     confirmToken,
     unsubscribeToken
   );
 
-  await sendSubscriptionConfirmation(email, confirmToken, repo);
+  await startSubscriptionConfirmationSaga({
+    email,
+    repo,
+    confirmToken,
+    subscriptionId: subscription.id,
+    shouldCompensateSubscription: true
+  });
 }
 
 export async function confirmSubscription(token) {

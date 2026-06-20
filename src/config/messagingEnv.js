@@ -24,6 +24,14 @@ export function getMessagingEnv() {
       'NOTIFICATION_DLQ',
       'notifications.dead-letter'
     ),
+    sagaReplyExchange: getOptionalEnv(
+      'SAGA_REPLY_EXCHANGE',
+      'saga.replies'
+    ),
+    sagaReplyQueue: getOptionalEnv(
+      'SAGA_REPLY_QUEUE',
+      'saga.replies'
+    ),
     notificationRetryTtlMs: getPositiveIntegerEnv(
       'NOTIFICATION_RETRY_TTL_MS',
       5000

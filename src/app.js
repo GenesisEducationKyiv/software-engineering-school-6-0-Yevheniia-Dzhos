@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import swaggerUi from 'swagger-ui-express';
 import { subscriptionRoutes } from './modules/subscriptions/index.js';
+import { sagaRoutes } from './modules/sagas/index.js';
 import { registerObservability } from './modules/observability/index.js';
 import { healthRoutes } from './modules/health/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -21,6 +22,7 @@ export function createApp() {
   app.use(express.static(publicDirectory));
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
   app.use('/api', subscriptionRoutes);
+  app.use('/api', sagaRoutes);
   app.use(healthRoutes);
   app.use(errorHandler);
 

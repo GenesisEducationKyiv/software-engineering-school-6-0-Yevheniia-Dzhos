@@ -7,12 +7,13 @@ vi.mock('../../src/modules/releaseTracking/index.js', () => ({
 vi.mock('../../src/modules/subscriptions/subscriptionTokenService.js', () => ({
   createSubscriptionTokens: vi.fn()
 }));
-vi.mock('../../src/modules/notifications/index.js', () => ({
-  sendSubscriptionConfirmation: vi.fn()
+vi.mock('../../src/modules/sagas/subscriptionConfirmationSaga.js', () => ({
+  startSubscriptionConfirmationSaga: vi.fn()
 }));
 vi.mock('../../src/modules/subscriptions/subscriptionRepository.js', () => ({
   findActiveSubscription: vi.fn(),
   createSubscriptionRecord: vi.fn(),
+  deletePendingSubscription: vi.fn(),
   findSubscriptionByToken: vi.fn(),
   confirmSubscriptionRecord: vi.fn(),
   unsubscribeSubscriptionRecord: vi.fn(),
@@ -21,7 +22,7 @@ vi.mock('../../src/modules/subscriptions/subscriptionRepository.js', () => ({
 
 const releaseTrackingModule = await import('../../src/modules/releaseTracking/index.js');
 const tokenService = await import('../../src/modules/subscriptions/subscriptionTokenService.js');
-const notificationService = await import('../../src/modules/notifications/index.js');
+const sagaModule = await import('../../src/modules/sagas/subscriptionConfirmationSaga.js');
 const subscriptionRepository = await import('../../src/modules/subscriptions/subscriptionRepository.js');
 const subscriptionService = await import('../../src/modules/subscriptions/subscriptionService.js');
 
@@ -37,6 +38,7 @@ describe('subscription service', () => {
       confirmToken: 'confirm-token-123',
       unsubscribeToken: 'unsubscribe-token-123'
     });
+    subscriptionRepository.createSubscriptionRecord.mockResolvedValue({ id: 101 });
 
     await subscriptionService.createSubscription({
       email: ' User@Example.com ',
@@ -46,8 +48,14 @@ describe('subscription service', () => {
     expect(releaseTrackingModule.trackRepository).toHaveBeenCalledWith('owner/repo');
     expect(subscriptionRepository.createSubscriptionRecord)
       .toHaveBeenCalledWith('user@example.com', 7, 'confirm-token-123', 'unsubscribe-token-123');
-    expect(notificationService.sendSubscriptionConfirmation)
-      .toHaveBeenCalledWith('user@example.com', 'confirm-token-123', 'owner/repo');
+    expect(sagaModule.startSubscriptionConfirmationSaga)
+      .toHaveBeenCalledWith({
+        email: 'user@example.com',
+        repo: 'owner/repo',
+        confirmToken: 'confirm-token-123',
+        subscriptionId: 101,
+        shouldCompensateSubscription: true
+      });
   });
 
   it('rejects duplicate active subscriptions', async () => {
@@ -78,8 +86,13 @@ describe('subscription service', () => {
 
     expect(tokenService.createSubscriptionTokens).not.toHaveBeenCalled();
     expect(subscriptionRepository.createSubscriptionRecord).not.toHaveBeenCalled();
-    expect(notificationService.sendSubscriptionConfirmation)
-      .toHaveBeenCalledWith('user@example.com', 'existing-confirm-token', 'owner/repo');
+    expect(sagaModule.startSubscriptionConfirmationSaga)
+      .toHaveBeenCalledWith({
+        email: 'user@example.com',
+        repo: 'owner/repo',
+        confirmToken: 'existing-confirm-token',
+        subscriptionId: 99
+      });
   });
 
   it('confirms subscriptions by valid token', async () => {

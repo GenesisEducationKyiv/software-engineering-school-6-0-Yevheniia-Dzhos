@@ -13,11 +13,14 @@ export async function findActiveSubscription(email, repositoryId) {
 }
 
 export async function createSubscriptionRecord(email, repositoryId, confirmToken, unsubscribeToken) {
-    await query(
+    const result = await query(
         `INSERT INTO subscriptions (email, repository_id, confirm_token, unsubscribe_token)
-     VALUES ($1, $2, $3, $4)`,
+     VALUES ($1, $2, $3, $4)
+     RETURNING *`,
         [email, repositoryId, confirmToken, unsubscribeToken]
     );
+
+    return result.rows[0];
 }
 
 export async function findSubscriptionByToken(column, token) {
@@ -52,6 +55,17 @@ export async function unsubscribeSubscriptionRecord(id) {
      WHERE id = $1`,
         [id]
     );
+}
+
+export async function deletePendingSubscription(id) {
+    const result = await query(
+        `DELETE FROM subscriptions
+     WHERE id = $1 AND confirmed = FALSE
+     RETURNING *`,
+        [id]
+    );
+
+    return result.rows[0] || null;
 }
 
 export async function listSubscriptionsByEmail(email) {

@@ -3,6 +3,11 @@ export const notificationCommands = {
   release: 'notification.release.send'
 };
 
+export const sagaReplyEvents = {
+  subscriptionConfirmationSucceeded: 'saga.subscription-confirmation.succeeded',
+  subscriptionConfirmationFailed: 'saga.subscription-confirmation.failed'
+};
+
 export function getNotificationTopologyConfig(env) {
   return {
     exchange: env.notificationExchange,
@@ -11,6 +16,8 @@ export function getNotificationTopologyConfig(env) {
     retryQueue: env.notificationRetryQueue,
     deadLetterExchange: env.notificationDeadLetterExchange,
     deadLetterQueue: env.notificationDeadLetterQueue,
+    sagaReplyExchange: env.sagaReplyExchange,
+    sagaReplyQueue: env.sagaReplyQueue,
     retryTtlMs: env.notificationRetryTtlMs,
     maxAttempts: env.notificationMaxAttempts
   };
@@ -20,6 +27,7 @@ export async function assertNotificationTopology(channel, config) {
   await channel.assertExchange(config.exchange, 'topic', { durable: true });
   await channel.assertExchange(config.retryExchange, 'topic', { durable: true });
   await channel.assertExchange(config.deadLetterExchange, 'topic', { durable: true });
+  await channel.assertExchange(config.sagaReplyExchange, 'topic', { durable: true });
 
   await channel.assertQueue(config.queue, {
     durable: true,
@@ -43,5 +51,12 @@ export async function assertNotificationTopology(channel, config) {
     config.deadLetterQueue,
     config.deadLetterExchange,
     'notification.*.send'
+  );
+
+  await channel.assertQueue(config.sagaReplyQueue, { durable: true });
+  await channel.bindQueue(
+    config.sagaReplyQueue,
+    config.sagaReplyExchange,
+    'saga.#'
   );
 }

@@ -1,6 +1,7 @@
 import {
   assertNotificationTopology,
-  notificationCommands
+  notificationCommands,
+  sagaReplyEvents
 } from '../../../src/modules/messaging/topology.js';
 import {
   sendReleaseNotification,
@@ -24,6 +25,17 @@ const handlers = {
     unsubscribeToken
   }) => sendReleaseNotification(email, repo, tag, unsubscribeToken)
 };
+
+function createSagaReply(type, command, error) {
+  return {
+    id: `${command.id}:${type}`,
+    type,
+    sagaId: command.payload.sagaId,
+    commandId: command.id,
+    occurredAt: new Date().toISOString(),
+    error: error?.message
+  };
+}
 
 export function createNotificationConsumer({
   brokerClient,
@@ -69,6 +81,26 @@ export function createNotificationConsumer({
     deliveryChannel.ack(message);
   }
 
+  async function publishSagaReply(command, deliveryChannel, type, error) {
+    if (command.type !== notificationCommands.subscriptionConfirmation) return;
+    if (!command.payload?.sagaId) return;
+
+    const reply = createSagaReply(type, command, error);
+    deliveryChannel.publish(
+      topology.sagaReplyExchange,
+      type,
+      Buffer.from(JSON.stringify(reply)),
+      {
+        contentType: 'application/json',
+        persistent: true,
+        messageId: reply.id,
+        type,
+        timestamp: Date.now()
+      }
+    );
+    await deliveryChannel.waitForConfirms();
+  }
+
   async function rejectInvalidCommand(message, deliveryChannel, error) {
     logger.error('Invalid notification command', {
       messageId: message.properties.messageId,
@@ -112,14 +144,10 @@ export function createNotificationConsumer({
     }
 
     try {
-      if (await hasProcessedMessage(command.id)) {
-        deliveryChannel.ack(message);
-        return;
+      if (!(await hasProcessedMessage(command.id))) {
+        await handler(command.payload);
+        await recordProcessedMessage(command.id, command.type);
       }
-
-      await handler(command.payload);
-      await recordProcessedMessage(command.id, command.type);
-      deliveryChannel.ack(message);
     } catch (error) {
       logger.error('Notification command handling failed', {
         messageId: message.properties.messageId,
@@ -130,6 +158,21 @@ export function createNotificationConsumer({
 
       if (getAttemptCount(message) >= topology.maxAttempts) {
         try {
+          await publishSagaReply(
+            command,
+            deliveryChannel,
+            sagaReplyEvents.subscriptionConfirmationFailed,
+            error
+          );
+        } catch (replyError) {
+          logger.error('Notification failure reply publishing failed', {
+            messageId: message.properties.messageId,
+            type: message.properties.type,
+            error: replyError
+          });
+        }
+
+        try {
           await moveToDeadLetter(message, deliveryChannel);
         } catch (deadLetterError) {
           logger.error('Notification command dead-lettering failed', {
@@ -137,11 +180,28 @@ export function createNotificationConsumer({
             type: message.properties.type,
             error: deadLetterError
           });
-          deliveryChannel.nack(message, false, true);
+          deliveryChannel.nack(message, false, false);
         }
         return;
       }
 
+      deliveryChannel.nack(message, false, false);
+      return;
+    }
+
+    try {
+      await publishSagaReply(
+        command,
+        deliveryChannel,
+        sagaReplyEvents.subscriptionConfirmationSucceeded
+      );
+      deliveryChannel.ack(message);
+    } catch (error) {
+      logger.error('Notification success reply publishing failed', {
+        messageId: message.properties.messageId,
+        type: message.properties.type,
+        error
+      });
       deliveryChannel.nack(message, false, false);
     }
   }

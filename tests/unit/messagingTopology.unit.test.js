@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   assertNotificationTopology,
-  notificationCommands
+  notificationCommands,
+  sagaReplyEvents
 } from '../../src/modules/messaging/topology.js';
 
 function createChannel() {
@@ -19,6 +20,8 @@ const config = {
   retryQueue: 'notifications.retry',
   deadLetterExchange: 'notifications.dead-letter',
   deadLetterQueue: 'notifications.dead-letter',
+  sagaReplyExchange: 'saga.replies',
+  sagaReplyQueue: 'saga.replies',
   retryTtlMs: 5000
 };
 
@@ -31,12 +34,19 @@ describe('notification messaging topology', () => {
     });
   });
 
+  it('defines saga reply routing keys', () => {
+    expect(sagaReplyEvents).toEqual({
+      subscriptionConfirmationSucceeded: 'saga.subscription-confirmation.succeeded',
+      subscriptionConfirmationFailed: 'saga.subscription-confirmation.failed'
+    });
+  });
+
   it('asserts durable notification, retry and dead-letter topology', async () => {
     const channel = createChannel();
 
     await assertNotificationTopology(channel, config);
 
-    expect(channel.assertExchange).toHaveBeenCalledTimes(3);
+    expect(channel.assertExchange).toHaveBeenCalledTimes(4);
     expect(channel.assertQueue).toHaveBeenCalledWith('notifications', {
       durable: true,
       arguments: {
@@ -53,6 +63,14 @@ describe('notification messaging topology', () => {
     expect(channel.assertQueue).toHaveBeenCalledWith('notifications.dead-letter', {
       durable: true
     });
-    expect(channel.bindQueue).toHaveBeenCalledTimes(3);
+    expect(channel.assertQueue).toHaveBeenCalledWith('saga.replies', {
+      durable: true
+    });
+    expect(channel.bindQueue).toHaveBeenCalledWith(
+      'saga.replies',
+      'saga.replies',
+      'saga.#'
+    );
+    expect(channel.bindQueue).toHaveBeenCalledTimes(4);
   });
 });
