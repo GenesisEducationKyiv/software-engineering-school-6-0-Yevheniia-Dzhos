@@ -76,9 +76,14 @@ describe('notification gRPC server', () => {
     expect(error.message).toContain('Email delivery failed');
   });
 
-  it('serves unary gRPC requests over HTTP/2', async () => {
+  it('serves unary gRPC requests over HTTP/2', { timeout: 15000 }, async () => {
     const handlers = createNotificationGrpcHandlers({ notificationService });
-    const server = createNotificationGrpcServer({ handlers });
+    const sessions = [];
+    const server = createNotificationGrpcServer({
+      handlers,
+      requestTimeoutMs: 5000
+    });
+    server.on('session', (session) => sessions.push(session));
 
     await new Promise((resolve) => {
       server.listen(0, '127.0.0.1', resolve);
@@ -88,7 +93,10 @@ describe('notification gRPC server', () => {
       const { port } = server.address();
       const client = createClient(
         NotificationService,
-        createGrpcTransport({ baseUrl: `http://127.0.0.1:${port}` })
+        createGrpcTransport({
+          baseUrl: `http://127.0.0.1:${port}`,
+          defaultTimeoutMs: 5000
+        })
       );
 
       const response = await client.sendSubscriptionConfirmation({
@@ -99,6 +107,7 @@ describe('notification gRPC server', () => {
 
       expect(response.status).toBe('sent');
     } finally {
+      sessions.forEach((s) => s.close());
       await new Promise((resolve, reject) => {
         server.close((error) => error ? reject(error) : resolve());
       });
