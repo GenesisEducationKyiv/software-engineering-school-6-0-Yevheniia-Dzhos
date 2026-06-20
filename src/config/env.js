@@ -25,5 +25,9 @@ export const env = {
     'NOTIFICATION_SERVICE_URL',
     'http://localhost:3002'
   ),
+  notificationServiceGrpcUrl: getOptionalEnv(
+    'NOTIFICATION_SERVICE_GRPC_URL',
+    'http://localhost:3003'
+  ),
   sagaApiToken: getOptionalEnv('SAGA_API_TOKEN', '')
 };

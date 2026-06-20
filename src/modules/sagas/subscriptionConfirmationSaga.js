@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { sendSubscriptionConfirmation } from '../notifications/index.js';
+import { sendSubscriptionConfirmationGrpc } from '../notifications/index.js';
 import { deletePendingSubscription } from '../subscriptions/subscriptionRepository.js';
 import {
   createSaga,
@@ -124,12 +124,17 @@ export async function dispatchSubscriptionConfirmationSaga(saga) {
     });
     if (!pendingSaga) return findSagaById(saga.id);
 
-    await sendSubscriptionConfirmation(
+    await sendSubscriptionConfirmationGrpc(
       pendingSaga.payload.email,
       pendingSaga.payload.confirmToken,
-      pendingSaga.payload.repo,
-      { sagaId: pendingSaga.id }
+      pendingSaga.payload.repo
     );
+
+    await updateSagaStateOrReload(pendingSaga.id, sagaStates.completed, {
+      completed: true,
+      error: null,
+      expectedState: sagaStates.notificationPending
+    });
   } catch (error) {
     await compensateSubscriptionConfirmationSaga(saga.id, error);
     throw error;
