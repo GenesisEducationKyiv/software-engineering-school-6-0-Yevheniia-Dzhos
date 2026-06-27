@@ -1,7 +1,7 @@
 const { defineConfig, devices } = require('@playwright/test');
 
 module.exports = defineConfig({
-  testDir: './e2e',
+  testDir: '.',
   timeout: 30000,
   fullyParallel: false,
   reporter: [['list']],
@@ -10,7 +10,7 @@ module.exports = defineConfig({
     trace: 'on-first-retry'
   },
   webServer: {
-    command: 'node e2e/server.mjs',
+    command: 'node server.mjs',
     url: 'http://127.0.0.1:3310/health',
     reuseExistingServer: !process.env.CI,
     timeout: 30000
@@ -22,7 +22,7 @@ module.exports = defineConfig({
     },
     {
       name: 'mobile-chrome',
-      use: { ...devices['Pixel 5'] }
+      use: { ...devices['Pixel 7'] }
     }
   ]
 });

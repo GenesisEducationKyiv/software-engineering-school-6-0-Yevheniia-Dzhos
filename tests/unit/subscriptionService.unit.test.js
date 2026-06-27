@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppError } from '../../src/utils/errors.js';
 
 vi.mock('../../src/services/githubService.js', () => ({
@@ -34,7 +34,7 @@ const subscriptionRepository = await import('../../src/repositories/subscription
 const subscriptionService = await import('../../src/services/subscriptionService.js');
 
 describe('subscription service', () => {
-  beforeEach(() => {
+  afterEach(() => {
     vi.clearAllMocks();
   });
 

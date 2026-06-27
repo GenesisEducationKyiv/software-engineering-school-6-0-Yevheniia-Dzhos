@@ -31,9 +31,9 @@ Covered endpoints:
 
 Expected result: all API endpoints return the correct status codes and response bodies, and database state changes correctly after subscribe, confirm, list, and unsubscribe flows.
 
-Location: `tests/integration/api.integration.test.js`
+Location: `tests/integration/`
 
-There is one integration test file because this is a small API with one route group. Professional projects often start this way: one integration suite per bounded API area, with many scenarios inside it. If the API grows, split it by feature, for example `subscriptions.integration.test.js`, `repositories.integration.test.js`, and `notifications.integration.test.js`.
+Integration tests are split by endpoint so each file stays focused as the API grows.
 
 ## Why Integration Has Its Own Docker Compose
 
@@ -47,7 +47,7 @@ This keeps test runs repeatable and prevents test data from mixing with local de
 
 ## E2E tests
 
-E2E tests verify the public browser page with Playwright Chromium. They use a lightweight local server from `tests/e2e/server.mjs` so the UI behavior can be tested without requiring the full database-backed application to run.
+E2E tests verify the public browser page with Playwright Chromium. They start the real Express app through `tests/e2e/server.mjs` and use Docker-managed PostgreSQL and MailHog for test dependencies.
 
 Covered behavior:
 

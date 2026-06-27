@@ -13,10 +13,11 @@ test.describe('GitHub Release Notifier page', () => {
     await expect(page.getByRole('link', { name: 'Health' })).toHaveAttribute('href', '/health');
   });
 
-  test('submits a valid subscription and shows the success response', async ({ page }) => {
+  test('submits a valid subscription and shows the success response', async ({ page }, testInfo) => {
     await page.goto('/');
+    const email = `e2e-${testInfo.project.name}-${Date.now()}@example.com`;
 
-    await page.getByPlaceholder('you@example.com').fill('user@example.com');
+    await page.getByPlaceholder('you@example.com').fill(email);
     await page.getByPlaceholder('owner/repo').fill('octocat/Hello-World');
     await page.getByRole('button', { name: 'Subscribe' }).click();
 

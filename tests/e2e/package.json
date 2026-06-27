@@ -7,8 +7,5 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.45.3"
-  },
-  "dependencies": {
-    "github-release-notifier": "file:.."
   }
 }
