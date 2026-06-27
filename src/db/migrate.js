@@ -1,33 +1,51 @@
-import { query } from './client.js';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { pool } from './client.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export async function runMigrations() {
-  await query(`
-    CREATE TABLE IF NOT EXISTS repositories (
-      id SERIAL PRIMARY KEY,
-      full_name TEXT NOT NULL UNIQUE,
-      owner TEXT NOT NULL,
-      name TEXT NOT NULL,
-      last_seen_tag TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
+  const migrationsDir = path.join(__dirname, 'migrations');
+  const migrationFiles = (await fs.readdir(migrationsDir))
+    .filter((file) => file.endsWith('.sql'))
+    .sort();
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      filename TEXT PRIMARY KEY,
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
   `);
 
-  await query(`
-    CREATE TABLE IF NOT EXISTS subscriptions (
-      id SERIAL PRIMARY KEY,
-      email TEXT NOT NULL,
-      repository_id INTEGER NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
-      confirmed BOOLEAN NOT NULL DEFAULT FALSE,
-      confirm_token TEXT NOT NULL UNIQUE,
-      unsubscribe_token TEXT NOT NULL UNIQUE,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      confirmed_at TIMESTAMPTZ,
-      unsubscribed_at TIMESTAMPTZ,
-      UNIQUE(email, repository_id)
+  for (const migrationFile of migrationFiles) {
+    const alreadyApplied = await pool.query(
+      'SELECT 1 FROM schema_migrations WHERE filename = $1',
+      [migrationFile]
     );
-  `);
 
-  await query(`CREATE INDEX IF NOT EXISTS idx_subscriptions_email ON subscriptions(email);`);
-  await query(`CREATE INDEX IF NOT EXISTS idx_subscriptions_active ON subscriptions(confirmed, unsubscribed_at);`);
+    if (alreadyApplied.rowCount > 0) {
+      continue;
+    }
+
+    const migrationPath = path.join(migrationsDir, migrationFile);
+    const sql = await fs.readFile(migrationPath, 'utf8');
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+      await client.query(sql);
+      await client.query(
+        'INSERT INTO schema_migrations(filename) VALUES ($1)',
+        [migrationFile]
+      );
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 }
