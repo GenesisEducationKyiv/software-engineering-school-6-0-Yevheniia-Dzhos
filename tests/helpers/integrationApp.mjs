@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll } from 'vitest';
+import { afterEach, beforeAll } from 'vitest';
 import { applyTestEnv } from './testEnv.mjs';
 
 applyTestEnv();
@@ -7,7 +7,6 @@ export function setupIntegrationApp() {
   const createdEmails = new Set();
   const context = {
     app: null,
-    pool: null,
     query: null
   };
 
@@ -16,7 +15,6 @@ export function setupIntegrationApp() {
     const dbModule = await import('../../src/db/client.js');
 
     context.app = appModule.createApp();
-    context.pool = dbModule.pool;
     context.query = dbModule.query;
   });
 
@@ -28,10 +26,6 @@ export function setupIntegrationApp() {
       [[...createdEmails]]
     );
     createdEmails.clear();
-  });
-
-  afterAll(async () => {
-    await context.pool?.end();
   });
 
   return {

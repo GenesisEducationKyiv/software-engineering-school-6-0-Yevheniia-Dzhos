@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -106,6 +106,27 @@ async function withDockerDependencies(callback) {
   }
 }
 
+function runAsync(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd || rootDir,
+      env: { ...process.env, ...(options.env || {}) },
+      stdio: 'inherit',
+      shell: true
+    });
+
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code === 0 || options.allowFailure) {
+        resolve({ status: code });
+        return;
+      }
+
+      reject(new Error(`${command} ${args.join(' ')} failed with exit code ${code}`));
+    });
+  });
+}
+
 async function runIntegration() {
   ensureRootDependencies();
   const {
@@ -117,20 +138,20 @@ async function runIntegration() {
 
   try {
     await withDockerDependencies(async () => {
-    githubServer = createGithubStubServer();
-    const githubPort = await listen(githubServer);
-    const testEnv = applyTestEnv({
-      GITHUB_API_URL: `http://127.0.0.1:${githubPort}`
-    });
+      githubServer = createGithubStubServer();
+      const githubPort = await listen(githubServer);
+      const testEnv = applyTestEnv({
+        GITHUB_API_URL: `http://127.0.0.1:${githubPort}`
+      });
 
-    const migrationModule = await import('../src/db/migrate.js');
-    const dbModule = await import('../src/db/client.js');
-    await migrationModule.runMigrations();
-    await dbModule.pool.end();
+      const migrationModule = await import('../src/db/migrate.js');
+      const dbModule = await import('../src/db/client.js');
+      await migrationModule.runMigrations();
+      await dbModule.pool.end();
 
-    run('npx', ['vitest', 'run', '--config', 'tests/vitest.integration.config.mjs'], {
-      env: testEnv
-    });
+      await runAsync('npx', ['vitest', 'run', '--config', 'tests/vitest.integration.config.mjs'], {
+        env: testEnv
+      });
     });
   } finally {
     await close(githubServer);
@@ -142,7 +163,7 @@ async function runE2e() {
   ensureE2eDependencies();
 
   await withDockerDependencies(async () => {
-    run('npm', ['exec', '--', 'playwright', 'test', '--config=playwright.config.cjs'], {
+    await runAsync('npm', ['exec', '--', 'playwright', 'test', '--config=playwright.config.cjs'], {
       cwd: e2eDir,
       env: buildTestEnv({ APP_BASE_URL: 'http://127.0.0.1:3310' })
     });
