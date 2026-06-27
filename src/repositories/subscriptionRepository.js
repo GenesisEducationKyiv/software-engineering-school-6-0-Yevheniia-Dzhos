@@ -80,7 +80,10 @@ export async function unsubscribeSubscriptionRecord(id) {
 
 export async function listSubscriptionsByEmail(email) {
     const result = await query(
-        `SELECT s.email, r.full_name AS repo, s.confirmed, r.last_seen_tag
+        `SELECT s.email,
+                r.full_name AS repo,
+                s.confirmed_at IS NOT NULL AS confirmed,
+                r.last_seen_tag
      FROM subscriptions s
      JOIN repositories r ON r.id = s.repository_id
      WHERE s.email = $1 AND s.unsubscribed_at IS NULL
@@ -91,12 +94,12 @@ export async function listSubscriptionsByEmail(email) {
     return result.rows;
 }
 
-export async function findActiveSubscribersByRepositoryId(repositoryId) {
+export async function findReleaseNotificationRecipientsByRepositoryId(repositoryId) {
     const result = await query(
         `SELECT email, unsubscribe_token
      FROM subscriptions
      WHERE repository_id = $1
-       AND confirmed = TRUE
+       AND confirmed_at IS NOT NULL
        AND unsubscribed_at IS NULL`,
         [repositoryId]
     );

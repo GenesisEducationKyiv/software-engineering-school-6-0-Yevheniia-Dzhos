@@ -19,6 +19,6 @@ describe('app routes', () => {
 
   it('rejects invalid payload', async () => {
     const res = await request(app).post('/api/subscribe').send({ email: 'bad', repo: 'bad' });
-    expect([400, 404, 409, 429, 502]).toContain(res.status);
+    expect(res.status).toBe(400);
   });
 });

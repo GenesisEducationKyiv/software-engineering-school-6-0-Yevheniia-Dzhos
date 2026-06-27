@@ -24,7 +24,7 @@ export async function findRepositoriesWithActiveSubscriptions() {
         `SELECT DISTINCT r.id, r.full_name, r.last_seen_tag
      FROM repositories r
      JOIN subscriptions s ON s.repository_id = r.id
-     WHERE s.confirmed = TRUE AND s.unsubscribed_at IS NULL`
+     WHERE s.confirmed_at IS NOT NULL AND s.unsubscribed_at IS NULL`
     );
 
     return result.rows;

@@ -9,7 +9,7 @@ export async function ensureRepositoryExists(repo) {
   }
 
   if (!response.ok) {
-    throw new AppError(502, 'GitHub API error');
+    throw new AppError(500, 'GitHub API error');
   }
 
   return response.json();
@@ -23,7 +23,7 @@ export async function fetchLatestReleaseTag(repo) {
   }
 
   if (!response.ok) {
-    throw new AppError(502, 'GitHub API error');
+    throw new AppError(500, 'GitHub API error');
   }
 
   const data = await response.json();
