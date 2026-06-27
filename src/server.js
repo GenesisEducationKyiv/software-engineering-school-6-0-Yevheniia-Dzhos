@@ -2,7 +2,8 @@ import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { pool } from './db/client.js';
 import { runMigrations } from './db/migrate.js';
-import { startReleaseScanner, scanForNewReleases } from './jobs/releaseScanner.js';
+import { startReleaseScanner } from './jobs/releaseScanner.js';
+import { scanForNewReleases } from './services/releaseScannerService.js';
 
 const app = createApp();
 

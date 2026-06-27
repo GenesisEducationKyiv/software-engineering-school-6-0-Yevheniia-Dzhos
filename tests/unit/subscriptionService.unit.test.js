@@ -17,7 +17,9 @@ vi.mock('../../src/repositories/trackedRepositoryRepository.js', () => ({
 }));
 vi.mock('../../src/repositories/subscriptionRepository.js', () => ({
   findActiveSubscription: vi.fn(),
+  findUnsubscribedSubscription: vi.fn(),
   createSubscriptionRecord: vi.fn(),
+  reactivateSubscriptionRecord: vi.fn(),
   findSubscriptionByToken: vi.fn(),
   confirmSubscriptionRecord: vi.fn(),
   unsubscribeSubscriptionRecord: vi.fn(),
@@ -40,6 +42,7 @@ describe('subscription service', () => {
     githubService.fetchLatestReleaseTag.mockResolvedValue('v1.2.3');
     trackedRepositoryRepository.findTrackedRepositoryByFullName.mockResolvedValue({ id: 7 });
     subscriptionRepository.findActiveSubscription.mockResolvedValue(null);
+    subscriptionRepository.findUnsubscribedSubscription.mockResolvedValue(null);
     tokenService.createSubscriptionTokens.mockReturnValue({
       confirmToken: 'confirm-token-123',
       unsubscribeToken: 'unsubscribe-token-123'

@@ -1,11 +1,27 @@
 import { scanForNewReleases } from '../services/releaseScannerService.js';
-
-export { scanForNewReleases };
+let scannerIntervalId = null;
+let isRunning = false;
 
 export function startReleaseScanner(intervalMs) {
-  setInterval(() => {
-    scanForNewReleases().catch((error) => {
+  if (scannerIntervalId) {
+    return scannerIntervalId;
+  }
+
+  scannerIntervalId = setInterval(async () => {
+    if (isRunning) {
+      return;
+    }
+
+    isRunning = true;
+
+    try {
+      await scanForNewReleases();
+    } catch (error) {
       console.error('Scheduled scanner failed:', error.message);
-    });
+    } finally {
+      isRunning = false;
+    }
   }, intervalMs);
+
+  return scannerIntervalId;
 }

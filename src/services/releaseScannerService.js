@@ -1,10 +1,10 @@
 import { fetchLatestReleaseTag } from './githubService.js';
-import { sendReleaseEmail } from './emailService.js';
+import { sendReleaseNotification } from './notificationService.js';
 import {
     findRepositoriesWithActiveSubscriptions,
     updateLastSeenTag
 } from '../repositories/trackedRepositoryRepository.js';
-import { findActiveSubscribersByRepositoryId } from '../repositories/subscriptionRepository.js';
+import { findReleaseNotificationRecipientsByRepositoryId } from '../repositories/subscriptionRepository.js';
 
 export async function scanForNewReleases() {
     const repositories = await findRepositoriesWithActiveSubscriptions();
@@ -22,16 +22,16 @@ async function scanRepositoryForNewRelease(repository) {
             return;
         }
 
-        const subscribers = await findActiveSubscribersByRepositoryId(repository.id);
+        const subscribers = await findReleaseNotificationRecipientsByRepositoryId(repository.id);
 
-        for (const subscriber of subscribers) {
-            await sendReleaseEmail(
+        await Promise.all(subscribers.map((subscriber) => (
+            sendReleaseNotification(
                 subscriber.email,
                 repository.full_name,
                 latestTag,
                 subscriber.unsubscribe_token
-            );
-        }
+            )
+        )));
 
         await updateLastSeenTag(repository.id, latestTag);
     } catch (error) {

@@ -12,11 +12,35 @@ export async function findActiveSubscription(email, repositoryId) {
     return result.rows[0] || null;
 }
 
+export async function findUnsubscribedSubscription(email, repositoryId) {
+    const result = await query(
+        `SELECT * FROM subscriptions
+     WHERE email = $1 AND repository_id = $2 AND unsubscribed_at IS NOT NULL`,
+        [email, repositoryId]
+    );
+
+    return result.rows[0] || null;
+}
+
 export async function createSubscriptionRecord(email, repositoryId, confirmToken, unsubscribeToken) {
     await query(
         `INSERT INTO subscriptions (email, repository_id, confirm_token, unsubscribe_token)
      VALUES ($1, $2, $3, $4)`,
         [email, repositoryId, confirmToken, unsubscribeToken]
+    );
+}
+
+export async function reactivateSubscriptionRecord(id, confirmToken, unsubscribeToken) {
+    await query(
+        `UPDATE subscriptions
+     SET confirmed = FALSE,
+         confirm_token = $1,
+         unsubscribe_token = $2,
+         confirmed_at = NULL,
+         unsubscribed_at = NULL,
+         created_at = NOW()
+     WHERE id = $3`,
+        [confirmToken, unsubscribeToken, id]
     );
 }
 
@@ -56,7 +80,10 @@ export async function unsubscribeSubscriptionRecord(id) {
 
 export async function listSubscriptionsByEmail(email) {
     const result = await query(
-        `SELECT s.email, r.full_name AS repo, s.confirmed, r.last_seen_tag
+        `SELECT s.email,
+                r.full_name AS repo,
+                s.confirmed_at IS NOT NULL AS confirmed,
+                r.last_seen_tag
      FROM subscriptions s
      JOIN repositories r ON r.id = s.repository_id
      WHERE s.email = $1 AND s.unsubscribed_at IS NULL
@@ -67,12 +94,12 @@ export async function listSubscriptionsByEmail(email) {
     return result.rows;
 }
 
-export async function findActiveSubscribersByRepositoryId(repositoryId) {
+export async function findReleaseNotificationRecipientsByRepositoryId(repositoryId) {
     const result = await query(
         `SELECT email, unsubscribe_token
      FROM subscriptions
      WHERE repository_id = $1
-       AND confirmed = TRUE
+       AND confirmed_at IS NOT NULL
        AND unsubscribed_at IS NULL`,
         [repositoryId]
     );

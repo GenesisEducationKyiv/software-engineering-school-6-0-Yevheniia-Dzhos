@@ -15,7 +15,9 @@ import {
 } from '../repositories/trackedRepositoryRepository.js';
 import {
   findActiveSubscription,
+  findUnsubscribedSubscription,
   createSubscriptionRecord,
+  reactivateSubscriptionRecord,
   findSubscriptionByToken,
   confirmSubscriptionRecord,
   unsubscribeSubscriptionRecord,
@@ -47,6 +49,19 @@ export async function createSubscription(input) {
   }
 
   const { confirmToken, unsubscribeToken } = createSubscriptionTokens();
+
+  const unsubscribed = await findUnsubscribedSubscription(email, repository.id);
+
+  if (unsubscribed) {
+    await reactivateSubscriptionRecord(
+      unsubscribed.id,
+      confirmToken,
+      unsubscribeToken
+    );
+
+    await sendSubscriptionConfirmation(email, confirmToken, repo);
+    return;
+  }
 
   await createSubscriptionRecord(
     email,
