@@ -1,0 +1,11 @@
+{
+  "name": "github-release-notifier-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:e2e": "playwright test --config=playwright.config.cjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.45.3"
+  }
+}

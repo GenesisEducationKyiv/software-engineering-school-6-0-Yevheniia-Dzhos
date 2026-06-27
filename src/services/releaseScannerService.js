@@ -6,26 +6,34 @@ import {
 } from '../repositories/trackedRepositoryRepository.js';
 import { findReleaseNotificationRecipientsByRepositoryId } from '../repositories/subscriptionRepository.js';
 
-export async function scanForNewReleases() {
-    const repositories = await findRepositoriesWithActiveSubscriptions();
+const defaultReleaseScannerDependencies = {
+    fetchLatestReleaseTag,
+    sendReleaseNotification,
+    findRepositoriesWithActiveSubscriptions,
+    updateLastSeenTag,
+    findReleaseNotificationRecipientsByRepositoryId
+};
+
+export async function scanForNewReleases(dependencies = defaultReleaseScannerDependencies) {
+    const repositories = await dependencies.findRepositoriesWithActiveSubscriptions();
 
     for (const repository of repositories) {
-        await scanRepositoryForNewRelease(repository);
+        await scanRepositoryForNewRelease(repository, dependencies);
     }
 }
 
-async function scanRepositoryForNewRelease(repository) {
+async function scanRepositoryForNewRelease(repository, dependencies) {
     try {
-        const latestTag = await fetchLatestReleaseTag(repository.full_name);
+        const latestTag = await dependencies.fetchLatestReleaseTag(repository.full_name);
 
         if (!latestTag || latestTag === repository.last_seen_tag) {
             return;
         }
 
-        const subscribers = await findReleaseNotificationRecipientsByRepositoryId(repository.id);
+        const subscribers = await dependencies.findReleaseNotificationRecipientsByRepositoryId(repository.id);
 
         await Promise.all(subscribers.map((subscriber) => (
-            sendReleaseNotification(
+            dependencies.sendReleaseNotification(
                 subscriber.email,
                 repository.full_name,
                 latestTag,
@@ -33,7 +41,7 @@ async function scanRepositoryForNewRelease(repository) {
             )
         )));
 
-        await updateLastSeenTag(repository.id, latestTag);
+        await dependencies.updateLastSeenTag(repository.id, latestTag);
     } catch (error) {
         console.error(`Scanner error for ${repository.full_name}:`, error.message);
     }

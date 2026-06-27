@@ -6,8 +6,11 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "node tests/run-tests.mjs all",
+    "test:unit": "node tests/run-tests.mjs unit",
+    "test:integration": "node tests/run-tests.mjs integration",
+    "test:e2e": "node tests/run-tests.mjs e2e",
+    "test:watch": "vitest --config tests/vitest.unit.config.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
