@@ -23,13 +23,13 @@ test.describe('GitHub Release Notifier page', () => {
     await expect(page.locator('#status')).toHaveText('Subscription successful. Confirmation email sent.');
   });
 
-  test('shows API validation errors without leaving the page', async ({ page }) => {
+  test('shows validation errors without leaving the page', async ({ page }) => {
     await page.goto('/');
 
     await page.getByPlaceholder('you@example.com').fill('user@example.com');
     await page.getByPlaceholder('owner/repo').fill('bad');
     await page.getByRole('button', { name: 'Subscribe' }).click();
 
-    await expect(page.locator('#status')).toHaveText('Invalid repo format');
+    await expect(page.locator('#status')).toHaveText('Repository must use owner/repo format.');
   });
 });
