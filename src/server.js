@@ -4,7 +4,7 @@ import { pool } from './db/client.js';
 import {
   startReleaseScanner,
   stopReleaseScanner
-} from './modules/releaseTracking/releaseScanner.js';
+} from './modules/releaseTracking/index.js';
 import { closeNotificationPublisher } from './modules/notifications/index.js';
 import {
   closeSagaReplyConsumer,

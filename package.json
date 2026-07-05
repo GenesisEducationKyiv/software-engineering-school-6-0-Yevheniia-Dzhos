@@ -18,6 +18,7 @@
     "test:e2e": "node tests/run-tests.mjs e2e",
     "test:e2e:install": "node tests/run-tests.mjs e2e:install",
     "test:watch": "vitest --config tests/vitest.unit.config.mjs",
+    "arch:check": "vitest run --config tests/vitest.unit.config.mjs tests/unit/architectureDependencies.unit.test.js",
     "proto:lint": "node scripts/run-buf.mjs lint",
     "proto:generate": "node scripts/run-buf.mjs generate",
     "proto:check": "npm run proto:lint && npm run proto:generate",

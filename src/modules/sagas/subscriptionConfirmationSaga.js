@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { sendSubscriptionConfirmationGrpc } from '../notifications/index.js';
-import { deletePendingSubscription } from '../subscriptions/subscriptionRepository.js';
+import { removePendingSubscription } from '../subscriptions/index.js';
 import {
   createSaga,
   findActiveSagaBySubscriptionId,
@@ -224,7 +224,7 @@ async function compensateLoadedSubscriptionConfirmationSaga(saga, error) {
     && compensatingSaga.payload?.subscriptionId
   ) {
     try {
-      await deletePendingSubscription(compensatingSaga.payload.subscriptionId);
+      await removePendingSubscription(compensatingSaga.payload.subscriptionId);
     } catch (compensationError) {
       return updateSagaStateOrReload(saga.id, sagaStates.failed, {
         error: compensationError.message,

@@ -1,6 +1,8 @@
 import { env } from '../../config/env.js';
-import { createBrokerClient } from '@notifier/shared/modules/messaging/brokerClient.js';
-import { getNotificationTopologyConfig } from '@notifier/shared/modules/messaging/topology.js';
+import {
+  createBrokerClient,
+  getNotificationTopologyConfig
+} from '@notifier/shared/modules/messaging/index.js';
 import { logger } from '@notifier/shared/modules/observability/index.js';
 import { createSagaReplyConsumer } from './sagaReplyConsumer.js';
 import { recoverTimedOutSubscriptionConfirmationSagas } from './subscriptionConfirmationSaga.js';
@@ -84,6 +86,8 @@ export async function closeSagaReplyConsumer() {
 }
 
 export {
+  createSubscriptionConfirmationSaga,
+  dispatchSubscriptionConfirmationSaga,
   startSubscriptionConfirmationSaga,
   handleSubscriptionConfirmationSagaReply,
   recoverTimedOutSubscriptionConfirmationSagas

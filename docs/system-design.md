@@ -1,10 +1,13 @@
-# System Design — GitHub Release Notifier
+# System Design - GitHub Release Notifier
 
 ## 1. System Overview
 
 GitHub Release Notifier is a Node.js web application that allows a user to subscribe an email address to release updates for a GitHub repository. The system validates repository existence through the GitHub API, stores subscriptions in PostgreSQL, requires email confirmation before activation, periodically checks repositories for new releases, and sends notification emails to confirmed subscribers.
 
-The current implementation is a small monolithic Node.js service with Express, PostgreSQL, a background release scanner, SMTP-based email delivery, Swagger documentation, and a minimal static UI.
+The current implementation is a modular Node.js system. The main application uses Express, PostgreSQL, RabbitMQ, gRPC, a background release scanner, saga orchestration, Swagger documentation, structured logs, metrics, and a minimal static UI. Email delivery is extracted into a notification service.
+
+For the current application architecture diagrams and dependency rules, see
+`docs/application-architecture.md`.
 
 ---
 
@@ -546,6 +549,11 @@ Possible future improvements:
 
 ## 16. Summary
 
-The current design is intentionally simple: a monolithic Express application, PostgreSQL database, GitHub API integration, SMTP email delivery, and a periodic background scanner.
+The current design is a modular Node.js application with an extracted
+notification service. The main app owns the public API, subscriptions,
+repository tracking, saga orchestration, and release scanning. The notification
+service owns email delivery and supports RabbitMQ commands, REST, and gRPC.
 
-This architecture fits the current project scope because it is easy to understand, test, maintain, and run locally.
+This architecture still stays practical for the project scope, but it now has
+clearer runtime boundaries, explicit module public APIs, and automated
+architecture checks.
