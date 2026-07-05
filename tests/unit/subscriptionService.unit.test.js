@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppError } from '../../src/utils/errors.js';
 
 vi.mock('../../src/services/githubService.js', () => ({
@@ -17,7 +17,9 @@ vi.mock('../../src/repositories/trackedRepositoryRepository.js', () => ({
 }));
 vi.mock('../../src/repositories/subscriptionRepository.js', () => ({
   findActiveSubscription: vi.fn(),
+  findUnsubscribedSubscription: vi.fn(),
   createSubscriptionRecord: vi.fn(),
+  reactivateSubscriptionRecord: vi.fn(),
   findSubscriptionByToken: vi.fn(),
   confirmSubscriptionRecord: vi.fn(),
   unsubscribeSubscriptionRecord: vi.fn(),
@@ -32,7 +34,7 @@ const subscriptionRepository = await import('../../src/repositories/subscription
 const subscriptionService = await import('../../src/services/subscriptionService.js');
 
 describe('subscription service', () => {
-  beforeEach(() => {
+  afterEach(() => {
     vi.clearAllMocks();
   });
 
@@ -40,6 +42,7 @@ describe('subscription service', () => {
     githubService.fetchLatestReleaseTag.mockResolvedValue('v1.2.3');
     trackedRepositoryRepository.findTrackedRepositoryByFullName.mockResolvedValue({ id: 7 });
     subscriptionRepository.findActiveSubscription.mockResolvedValue(null);
+    subscriptionRepository.findUnsubscribedSubscription.mockResolvedValue(null);
     tokenService.createSubscriptionTokens.mockReturnValue({
       confirmToken: 'confirm-token-123',
       unsubscribeToken: 'unsubscribe-token-123'

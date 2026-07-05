@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../src/utils/tokens.js', () => ({
   generateToken: vi.fn()
@@ -8,7 +8,7 @@ const { generateToken } = await import('../../src/utils/tokens.js');
 const { createSubscriptionTokens } = await import('../../src/services/subscriptionTokenService.js');
 
 describe('subscription token service', () => {
-  beforeEach(() => {
+  afterEach(() => {
     vi.clearAllMocks();
   });
 

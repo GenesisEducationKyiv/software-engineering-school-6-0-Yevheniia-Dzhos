@@ -1,11 +1,13 @@
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { applyTestEnv, buildTestEnv } from './helpers/testEnv.mjs';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const testsDir = path.join(rootDir, 'tests');
+const e2eDir = path.join(testsDir, 'e2e');
 const mode = process.argv[2] || 'all';
 const allowedModes = new Set(['all', 'unit', 'integration', 'e2e']);
 
@@ -40,21 +42,21 @@ function ensureRootDependencies() {
 }
 
 function ensureE2eDependencies() {
-  const playwrightCli = path.join(testsDir, 'node_modules', '@playwright', 'test');
+  const playwrightCli = path.join(e2eDir, 'node_modules', '@playwright', 'test');
 
   if (!fs.existsSync(playwrightCli)) {
     console.log('Installing Playwright test dependencies...');
-    const installCommand = fs.existsSync(path.join(testsDir, 'package-lock.json')) ? 'ci' : 'install';
-    run('npm', ['--prefix', 'tests', installCommand]);
+    const installCommand = fs.existsSync(path.join(e2eDir, 'package-lock.json')) ? 'ci' : 'install';
+    run('npm', ['--prefix', 'tests/e2e', installCommand]);
   }
 
   console.log('Ensuring Playwright Chromium is installed...');
-  run('npx', ['playwright', 'install', 'chromium'], { cwd: testsDir });
+  run('npm', ['exec', '--', 'playwright', 'install', 'chromium'], { cwd: e2eDir });
 }
 
 async function waitForPostgres() {
   const pg = await import('pg');
-  const connectionString = 'postgres://postgres:postgres@localhost:55432/releases_test';
+  const { DATABASE_URL: connectionString } = buildTestEnv();
   const deadline = Date.now() + 30000;
   let lastError;
 
@@ -86,9 +88,7 @@ async function runUnit() {
   run('npx', ['vitest', 'run', '--config', 'tests/vitest.unit.config.mjs']);
 }
 
-async function runIntegration() {
-  ensureRootDependencies();
-
+async function withDockerDependencies(callback) {
   const composeArgs = [
     'compose',
     '-p',
@@ -100,23 +100,74 @@ async function runIntegration() {
   try {
     run('docker', [...composeArgs, 'up', '-d']);
     await waitForPostgres();
-    run('npx', ['vitest', 'run', '--config', 'tests/vitest.integration.config.mjs'], {
-      env: {
-        DATABASE_URL: 'postgres://postgres:postgres@localhost:55432/releases_test',
-        SMTP_HOST: 'localhost',
-        SMTP_PORT: '11025',
-        APP_BASE_URL: 'http://localhost:3000'
-      }
-    });
+    await callback();
   } finally {
     run('docker', [...composeArgs, 'down', '-v'], { allowFailure: true });
+  }
+}
+
+function runAsync(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd || rootDir,
+      env: { ...process.env, ...(options.env || {}) },
+      stdio: 'inherit',
+      shell: true
+    });
+
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code === 0 || options.allowFailure) {
+        resolve({ status: code });
+        return;
+      }
+
+      reject(new Error(`${command} ${args.join(' ')} failed with exit code ${code}`));
+    });
+  });
+}
+
+async function runIntegration() {
+  ensureRootDependencies();
+  const {
+    close,
+    createGithubStubServer,
+    listen
+  } = await import('./helpers/githubStubServer.mjs');
+  let githubServer;
+
+  try {
+    await withDockerDependencies(async () => {
+      githubServer = createGithubStubServer();
+      const githubPort = await listen(githubServer);
+      const testEnv = applyTestEnv({
+        GITHUB_API_URL: `http://127.0.0.1:${githubPort}`
+      });
+
+      const migrationModule = await import('../src/db/migrate.js');
+      const dbModule = await import('../src/db/client.js');
+      await migrationModule.runMigrations();
+      await dbModule.pool.end();
+
+      await runAsync('npx', ['vitest', 'run', '--config', 'tests/vitest.integration.config.mjs'], {
+        env: testEnv
+      });
+    });
+  } finally {
+    await close(githubServer);
   }
 }
 
 async function runE2e() {
   ensureRootDependencies();
   ensureE2eDependencies();
-  run('npx', ['playwright', 'test', '--config=playwright.config.cjs'], { cwd: testsDir });
+
+  await withDockerDependencies(async () => {
+    await runAsync('npm', ['exec', '--', 'playwright', 'test', '--config=playwright.config.cjs'], {
+      cwd: e2eDir,
+      env: buildTestEnv({ APP_BASE_URL: 'http://127.0.0.1:3310' })
+    });
+  });
 }
 
 try {

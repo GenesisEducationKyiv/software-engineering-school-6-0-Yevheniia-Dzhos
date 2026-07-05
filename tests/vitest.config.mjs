@@ -5,7 +5,6 @@ export default defineConfig({
     include: ['tests/unit/**/*.unit.test.js', 'tests/integration/**/*.integration.test.js'],
     globals: false,
     hookTimeout: 30000,
-    testTimeout: 30000,
-    fileParallelism: false
+    testTimeout: 30000
   }
 });
