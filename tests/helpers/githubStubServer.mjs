@@ -4,19 +4,22 @@ export function createGithubStubServer() {
   return http.createServer((req, res) => {
     res.setHeader('Content-Type', 'application/json');
 
-    if (req.url === '/repos/octocat/Hello-World') {
-      res.end(JSON.stringify({ full_name: 'octocat/Hello-World' }));
+    if (req.url === '/repos/missing/repo' || req.url === '/repos/missing/repo/releases/latest') {
+      res.statusCode = 404;
+      res.end(JSON.stringify({ message: 'Not Found' }));
       return;
     }
 
-    if (req.url === '/repos/octocat/Hello-World/releases/latest') {
+    const latestReleaseMatch = req.url.match(/^\/repos\/([^/]+)\/([^/]+)\/releases\/latest$/);
+    if (latestReleaseMatch) {
       res.end(JSON.stringify({ tag_name: 'v1.0.0' }));
       return;
     }
 
-    if (req.url === '/repos/missing/repo' || req.url === '/repos/missing/repo/releases/latest') {
-      res.statusCode = 404;
-      res.end(JSON.stringify({ message: 'Not Found' }));
+    const repositoryMatch = req.url.match(/^\/repos\/([^/]+)\/([^/]+)$/);
+    if (repositoryMatch) {
+      const [, owner, name] = repositoryMatch;
+      res.end(JSON.stringify({ full_name: `${owner}/${name}` }));
       return;
     }
 

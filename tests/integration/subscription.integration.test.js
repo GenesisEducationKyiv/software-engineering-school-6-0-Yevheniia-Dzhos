@@ -16,10 +16,11 @@ describe('subscription API', () => {
 
   it('POST /api/subscribe creates a pending subscription and sends confirmation mail', async () => {
     const email = integration.uniqueEmail('pending');
+    const repo = integration.uniqueRepo('pending');
 
     const response = await request(integration.app)
       .post('/api/subscribe')
-      .send({ email, repo: 'octocat/Hello-World' });
+      .send({ email, repo });
 
     expect(response.status).toBe(200);
     expect(response.body.message).toBe('Subscription successful. Confirmation email sent.');
@@ -36,7 +37,7 @@ describe('subscription API', () => {
     expect(saved.rows[0]).toMatchObject({
       email,
       confirmed: false,
-      full_name: 'octocat/Hello-World',
+      full_name: repo,
       last_seen_tag: 'v1.0.0'
     });
   });

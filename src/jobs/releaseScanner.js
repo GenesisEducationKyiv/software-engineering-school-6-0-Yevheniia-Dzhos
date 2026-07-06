@@ -1,4 +1,6 @@
 import { scanForNewReleases } from '../services/releaseScannerService.js';
+import { logger } from '../utils/logger.js';
+
 let scannerIntervalId = null;
 let isRunning = false;
 
@@ -17,7 +19,7 @@ export function startReleaseScanner(intervalMs) {
     try {
       await scanForNewReleases();
     } catch (error) {
-      console.error('Scheduled scanner failed:', error.message);
+      logger.error('Scheduled scanner failed', { error });
     } finally {
       isRunning = false;
     }

@@ -8,10 +8,11 @@ const integration = setupIntegrationApp();
 describe('unsubscribe endpoint', () => {
   it('GET /api/unsubscribe/:token unsubscribes and hides the subscription from lists', async () => {
     const email = integration.uniqueEmail('unsubscribe');
+    const repo = integration.uniqueRepo('unsubscribe');
     const {
       confirm_token: confirmToken,
       unsubscribe_token: unsubscribeToken
-    } = await createSubscription(integration, email);
+    } = await createSubscription(integration, email, repo);
     await request(integration.app).get(`/api/confirm/${confirmToken}`);
 
     const response = await request(integration.app).get(`/api/unsubscribe/${unsubscribeToken}`);

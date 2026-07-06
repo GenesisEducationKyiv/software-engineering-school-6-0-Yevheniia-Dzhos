@@ -40,6 +40,9 @@ export function setupIntegrationApp() {
       createdEmails.add(email);
       return email;
     },
+    uniqueRepo(prefix = 'repo') {
+      return `test-owner/${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    },
     async getStoredTokens(email) {
       const result = await context.query(
         `SELECT confirm_token, unsubscribe_token

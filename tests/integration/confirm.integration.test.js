@@ -8,7 +8,8 @@ const integration = setupIntegrationApp();
 describe('confirm endpoint', () => {
   it('GET /api/confirm/:token confirms an existing subscription', async () => {
     const email = integration.uniqueEmail('confirm');
-    const { confirm_token: token } = await createSubscription(integration, email);
+    const repo = integration.uniqueRepo('confirm');
+    const { confirm_token: token } = await createSubscription(integration, email, repo);
 
     const response = await request(integration.app).get(`/api/confirm/${token}`);
 

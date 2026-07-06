@@ -8,7 +8,8 @@ const integration = setupIntegrationApp();
 describe('subscriptions endpoint', () => {
   it('GET /api/subscriptions lists active subscriptions for an email', async () => {
     const email = integration.uniqueEmail('list');
-    const { confirm_token: token } = await createSubscription(integration, email);
+    const repo = integration.uniqueRepo('list');
+    const { confirm_token: token } = await createSubscription(integration, email, repo);
     await request(integration.app).get(`/api/confirm/${token}`);
 
     const response = await request(integration.app)
@@ -19,7 +20,7 @@ describe('subscriptions endpoint', () => {
     expect(response.body).toEqual([
       {
         email,
-        repo: 'octocat/Hello-World',
+        repo,
         confirmed: true,
         last_seen_tag: 'v1.0.0'
       }
