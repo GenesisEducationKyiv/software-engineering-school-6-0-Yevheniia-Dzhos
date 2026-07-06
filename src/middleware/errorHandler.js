@@ -1,14 +1,21 @@
 import { logger } from '../utils/logger.js';
+import { getRequestRoute } from '../utils/requestRoute.js';
+
+function getErrorLogLevel(status) {
+  if (status >= 500) return 'error';
+  if (status >= 400) return 'warn';
+  return 'info';
+}
 
 export function errorHandler(err, req, res, _next) {
   const status = err.status || 500;
   const message = err.message || 'Internal Server Error';
-  const logLevel = status >= 500 ? 'error' : 'warn';
+  const logLevel = getErrorLogLevel(status);
 
   logger[logLevel]('Request failed', {
     requestId: req.requestId,
     method: req.method,
-    path: req.originalUrl,
+    path: getRequestRoute(req),
     statusCode: status,
     error: err
   });

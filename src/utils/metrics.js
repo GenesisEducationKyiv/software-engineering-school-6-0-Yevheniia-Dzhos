@@ -1,3 +1,5 @@
+import { getRequestRoute } from './requestRoute.js';
+
 const durationBuckets = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10];
 const requestCounts = new Map();
 const errorCounts = new Map();
@@ -59,32 +61,6 @@ function getStatusClass(statusCode) {
   return `${Math.floor(statusCode / 100)}xx`;
 }
 
-function getRoutePath(req) {
-  if (req.route?.path) {
-    const routePath = Array.isArray(req.route.path) ? req.route.path[0] : req.route.path;
-    const originalPath = req.originalUrl?.split('?')[0] || '';
-    const routeSegments = routePath.split('/').filter(Boolean);
-    const originalSegments = originalPath.split('/').filter(Boolean);
-
-    for (let index = 0; index <= originalSegments.length - routeSegments.length; index += 1) {
-      const matches = routeSegments.every((segment, offset) => {
-        return segment.startsWith(':') || segment === originalSegments[index + offset];
-      });
-
-      if (matches) {
-        return `/${[
-          ...originalSegments.slice(0, index),
-          ...routeSegments
-        ].join('/')}`;
-      }
-    }
-
-    return `${req.baseUrl || ''}${routePath}`;
-  }
-
-  return 'unknown';
-}
-
 function metricHelp(name, help, type) {
   return [`# HELP ${name} ${help}`, `# TYPE ${name} ${type}`];
 }
@@ -115,7 +91,7 @@ export function recordHttpRequest(req, res, durationSeconds) {
   const statusCode = res.statusCode;
   const baseLabels = {
     method: req.method,
-    route: getRoutePath(req)
+    route: getRequestRoute(req)
   };
   const countLabels = {
     ...baseLabels,

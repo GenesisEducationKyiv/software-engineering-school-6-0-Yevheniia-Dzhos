@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { logger } from '../utils/logger.js';
+import { getRequestRoute } from '../utils/requestRoute.js';
 
 export function requestLogger(req, res, next) {
   const startedAt = process.hrtime.bigint();
@@ -15,7 +16,7 @@ export function requestLogger(req, res, next) {
     logger[level]('HTTP request completed', {
       requestId,
       method: req.method,
-      path: req.originalUrl,
+      path: getRequestRoute(req),
       statusCode: res.statusCode,
       durationMs: Math.round(durationMs),
       userAgent: req.get('user-agent'),
