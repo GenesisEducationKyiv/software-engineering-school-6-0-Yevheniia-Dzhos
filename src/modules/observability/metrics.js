@@ -1,55 +1,7 @@
-const durationBuckets = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10];
-function escapeLabelValue(value) {
-  return String(value).replaceAll('\\', '\\\\').replaceAll('\n', '\\n').replaceAll('"', '\\"');
-}
+import client from 'prom-client';
 
-function formatLabels(labels) {
-  const entries = Object.entries(labels);
-
-  if (entries.length === 0) return '';
-
-  return `{${entries
-    .map(([key, value]) => `${key}="${escapeLabelValue(value)}"`)
-    .join(',')}}`;
-}
-
-function labelsKey(labels) {
-  return Object.entries(labels)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `${key}:${value}`)
-    .join('|');
-}
-
-function increment(map, labels, amount = 1) {
-  const key = labelsKey(labels);
-  const current = map.get(key);
-
-  if (current) {
-    current.value += amount;
-    return;
-  }
-
-  map.set(key, { labels, value: amount });
-}
-
-function observeDuration(durationHistograms, labels, durationSeconds) {
-  const key = labelsKey(labels);
-  const current = durationHistograms.get(key) || {
-    labels,
-    buckets: new Map(durationBuckets.map((bucket) => [bucket, 0])),
-    count: 0,
-    sum: 0
-  };
-  for (const bucket of durationBuckets) {
-    if (durationSeconds <= bucket) {
-      current.buckets.set(bucket, current.buckets.get(bucket) + 1);
-    }
-  }
-
-  current.count += 1;
-  current.sum += durationSeconds;
-  durationHistograms.set(key, current);
-}
+const { Registry, Counter, Histogram, collectDefaultMetrics } = client;
+const ignoredRequestPaths = new Set(['/health', '/metrics']);
 
 function getStatusClass(statusCode) {
   return `${Math.floor(statusCode / 100)}xx`;
@@ -81,78 +33,116 @@ function getRoutePath(req) {
   return 'unknown';
 }
 
-function metricHelp(name, help, type) {
-  return [`# HELP ${name} ${help}`, `# TYPE ${name} ${type}`];
-}
-
-function counterLines(name, values) {
-  return [...values.values()].map(({ labels, value }) => `${name}${formatLabels(labels)} ${value}`);
-}
-
-function histogramLines(name, durationHistograms) {
-  const lines = [];
-
-  for (const histogram of durationHistograms.values()) {
-    for (const [bucket, value] of histogram.buckets.entries()) {
-      lines.push(`${name}_bucket${formatLabels({ ...histogram.labels, le: bucket })} ${value}`);
-    }
-
-    lines.push(`${name}_bucket${formatLabels({ ...histogram.labels, le: '+Inf' })} ${histogram.count}`);
-    lines.push(`${name}_sum${formatLabels(histogram.labels)} ${histogram.sum}`);
-    lines.push(`${name}_count${formatLabels(histogram.labels)} ${histogram.count}`);
-  }
-
-  return lines;
-}
-
 export function createMetrics() {
-  const requestCounts = new Map();
-  const errorCounts = new Map();
-  const durationHistograms = new Map();
+  const register = new Registry();
+
+  collectDefaultMetrics({ register });
+
+  const httpRequestsTotal = new Counter({
+    name: 'http_requests_total',
+    help: 'Total HTTP requests processed by the application.',
+    labelNames: ['method', 'route', 'status_code', 'status_class'],
+    registers: [register]
+  });
+
+  const httpRequestDurationSeconds = new Histogram({
+    name: 'http_request_duration_seconds',
+    help: 'HTTP request duration in seconds.',
+    labelNames: ['method', 'route'],
+    buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+    registers: [register]
+  });
+
+  const releaseScannerRunsTotal = new Counter({
+    name: 'release_scanner_runs_total',
+    help: 'Total release scanner runs.',
+    labelNames: ['status'],
+    registers: [register]
+  });
+
+  const releaseScannerDurationSeconds = new Histogram({
+    name: 'release_scanner_duration_seconds',
+    help: 'Release scanner run duration in seconds.',
+    labelNames: ['status'],
+    buckets: [0.1, 0.5, 1, 2.5, 5, 10, 30, 60],
+    registers: [register]
+  });
+
+  const releaseNotificationsSentTotal = new Counter({
+    name: 'release_notifications_sent_total',
+    help: 'Total release notification emails sent by the scanner.',
+    registers: [register]
+  });
+
+  const releaseScannerRepositoryFailuresTotal = new Counter({
+    name: 'release_scanner_repository_failures_total',
+    help: 'Total release scanner failures by repository.',
+    labelNames: ['repository'],
+    registers: [register]
+  });
 
   function recordHttpRequest(req, res, durationSeconds) {
-    if (req.path === '/metrics') return;
+    if (ignoredRequestPaths.has(req.path)) return;
 
     const statusCode = res.statusCode;
-    const baseLabels = {
+    const labels = {
       method: req.method,
-      route: getRoutePath(req)
-    };
-    const countLabels = {
-      ...baseLabels,
+      route: getRoutePath(req),
       status_code: statusCode,
       status_class: getStatusClass(statusCode)
     };
 
-    increment(requestCounts, countLabels);
-    observeDuration(durationHistograms, baseLabels, durationSeconds);
-
-    if (statusCode >= 400) {
-      increment(errorCounts, countLabels);
-    }
+    httpRequestsTotal.inc(labels);
+    httpRequestDurationSeconds.observe({
+      method: labels.method,
+      route: labels.route
+    }, durationSeconds);
   }
 
-  function renderMetrics() {
-    return [
-      ...metricHelp('http_requests_total', 'Total HTTP requests processed by the application.', 'counter'),
-      ...counterLines('http_requests_total', requestCounts),
-      '',
-      ...metricHelp('http_request_errors_total', 'Total HTTP requests completed with 4xx or 5xx status codes.', 'counter'),
-      ...counterLines('http_request_errors_total', errorCounts),
-      '',
-      ...metricHelp('http_request_duration_seconds', 'HTTP request duration in seconds.', 'histogram'),
-      ...histogramLines('http_request_duration_seconds', durationHistograms),
-      ''
-    ].join('\n');
+  function recordReleaseScannerRun(status, durationSeconds) {
+    const labels = { status };
+
+    releaseScannerRunsTotal.inc(labels);
+    releaseScannerDurationSeconds.observe(labels, durationSeconds);
+  }
+
+  function recordReleaseNotificationsSent(count) {
+    releaseNotificationsSentTotal.inc(count);
+  }
+
+  function recordReleaseScannerRepositoryFailure(repository) {
+    releaseScannerRepositoryFailuresTotal.inc({ repository });
+  }
+
+  async function renderMetrics() {
+    return register.metrics();
+  }
+
+  function getMetricsContentType() {
+    return register.contentType;
   }
 
   function resetMetrics() {
-    requestCounts.clear();
-    errorCounts.clear();
-    durationHistograms.clear();
+    register.resetMetrics();
   }
 
-  return { recordHttpRequest, renderMetrics, resetMetrics };
+  return {
+    recordHttpRequest,
+    recordReleaseScannerRun,
+    recordReleaseNotificationsSent,
+    recordReleaseScannerRepositoryFailure,
+    renderMetrics,
+    getMetricsContentType,
+    resetMetrics
+  };
 }
 
-export const { recordHttpRequest, renderMetrics, resetMetrics } = createMetrics();
+export const {
+  recordHttpRequest,
+  recordReleaseScannerRun,
+  recordReleaseNotificationsSent,
+  recordReleaseScannerRepositoryFailure,
+  renderMetrics,
+  getMetricsContentType,
+  resetMetrics
+} = createMetrics();

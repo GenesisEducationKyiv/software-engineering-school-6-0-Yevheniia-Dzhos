@@ -6,6 +6,7 @@ import {
 } from './trackedRepositoryRepository.js';
 import { processInChunks } from './processInChunks.js';
 import { logger } from '../observability/index.js';
+import { recordReleaseNotificationsSent } from '../observability/metrics.js';
 
 export async function handleDiscoveredRelease(discovery, chunkSize) {
   const { repository, latestTag } = discovery;
@@ -23,6 +24,7 @@ export async function handleDiscoveredRelease(discovery, chunkSize) {
   const failedDeliveries = deliveryResults
     .map((result, index) => ({ result, subscriber: subscribers[index] }))
     .filter(({ result }) => result.status === 'rejected');
+  const sentCount = deliveryResults.filter((result) => result.status === 'fulfilled').length;
 
   failedDeliveries.forEach(({ result, subscriber }) => {
     logger.error('Release notification delivery failed', {
@@ -37,6 +39,7 @@ export async function handleDiscoveredRelease(discovery, chunkSize) {
     throw failedDeliveries[0].result.reason;
   }
 
+  recordReleaseNotificationsSent(sentCount);
   await recordDiscoveredRelease(repository.id, latestTag);
   await updateLastSeenTag(repository.id, latestTag);
 }

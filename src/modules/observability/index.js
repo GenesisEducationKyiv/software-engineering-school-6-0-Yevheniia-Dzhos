@@ -1,6 +1,6 @@
 import { metricsMiddleware } from './metricsMiddleware.js';
 import { requestLogger } from './requestLogger.js';
-import { renderMetrics } from './metrics.js';
+import { getMetricsContentType, renderMetrics } from './metrics.js';
 import { createLogger } from './logger.js';
 import { createRequestLogger } from './requestLogger.js';
 import { createMetricsMiddleware } from './metricsMiddleware.js';
@@ -11,8 +11,12 @@ export { logger } from './logger.js';
 export function registerObservability(app) {
   app.use(requestLogger);
   app.use(metricsMiddleware);
-  app.get('/metrics', (_req, res) => {
-    res.type('text/plain; version=0.0.4; charset=utf-8').send(renderMetrics());
+  app.get('/metrics', async (_req, res, next) => {
+    try {
+      res.type(getMetricsContentType()).send(await renderMetrics());
+    } catch (error) {
+      next(error);
+    }
   });
 }
 
@@ -27,8 +31,12 @@ export function createObservability(serviceName) {
     registerObservability(app) {
       app.use(requestLogger);
       app.use(metricsMiddleware);
-      app.get('/metrics', (_req, res) => {
-        res.type('text/plain; version=0.0.4; charset=utf-8').send(metrics.renderMetrics());
+      app.get('/metrics', async (_req, res, next) => {
+        try {
+          res.type(metrics.getMetricsContentType()).send(await metrics.renderMetrics());
+        } catch (error) {
+          next(error);
+        }
       });
     }
   };

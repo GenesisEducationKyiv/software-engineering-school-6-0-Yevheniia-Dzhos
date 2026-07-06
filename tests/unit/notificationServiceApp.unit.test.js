@@ -65,12 +65,19 @@ describe('notification service app', () => {
     const healthResponse = await request(app)
       .get('/health')
       .set('x-request-id', 'request-123');
+    await request(app)
+      .post('/notifications/subscription-confirmation')
+      .send({
+        email: 'metrics@example.com',
+        token: 'token-123',
+        repo: 'owner/repo'
+      });
     const metricsResponse = await request(app).get('/metrics');
 
     expect(healthResponse.headers['x-request-id']).toBe('request-123');
     expect(metricsResponse.status).toBe(200);
     expect(metricsResponse.text).toContain(
-      'http_requests_total{method="GET",route="/health",status_code="200",status_class="2xx"}'
+      'http_requests_total{method="POST",route="/notifications/subscription-confirmation",status_code="202",status_class="2xx"}'
     );
   });
 });
