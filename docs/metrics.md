@@ -7,7 +7,6 @@ at `/metrics`.
 
 - `http_requests_total`: request rate source, labeled by `method`, `route`,
   `status_code`, and `status_class`
-- `http_request_errors_total`: failed requests with status code `4xx` or `5xx`
 - `http_request_duration_seconds`: request duration histogram
 
 ## Local Run
@@ -44,7 +43,7 @@ rate(http_requests_total[1m])
 Error rate:
 
 ```promql
-sum(rate(http_request_errors_total[1m])) / sum(rate(http_requests_total[1m]))
+sum(rate(http_requests_total{status_class=~"4xx|5xx"}[1m])) / sum(rate(http_requests_total[1m]))
 ```
 
 P95 latency:

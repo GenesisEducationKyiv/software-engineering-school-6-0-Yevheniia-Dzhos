@@ -184,7 +184,7 @@
             "uid": "Prometheus"
           },
           "editorMode": "code",
-          "expr": "(sum(rate(http_request_errors_total[1m])) or vector(0)) / clamp_min(sum(rate(http_requests_total[1m])), 0.001)",
+          "expr": "(sum(rate(http_requests_total{status_class=~\"4xx|5xx\"}[1m])) or vector(0)) / clamp_min(sum(rate(http_requests_total[1m])), 0.001)",
           "legendFormat": "errors / requests",
           "range": true,
           "refId": "A"

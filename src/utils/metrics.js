@@ -1,128 +1,59 @@
+import client from 'prom-client';
+
 import { getRequestRoute } from './requestRoute.js';
 
-const durationBuckets = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10];
-const requestCounts = new Map();
-const errorCounts = new Map();
-const durationHistograms = new Map();
+const { Registry, Counter, Histogram, collectDefaultMetrics } = client;
+const register = new Registry();
+const ignoredRequestPaths = new Set(['/metrics']);
 
-function escapeLabelValue(value) {
-  return String(value).replaceAll('\\', '\\\\').replaceAll('\n', '\\n').replaceAll('"', '\\"');
-}
+collectDefaultMetrics({ register });
 
-function formatLabels(labels) {
-  const entries = Object.entries(labels);
+const httpRequestsTotal = new Counter({
+  name: 'http_requests_total',
+  help: 'Total HTTP requests processed by the application.',
+  labelNames: ['method', 'route', 'status_code', 'status_class'],
+  registers: [register]
+});
 
-  if (entries.length === 0) return '';
-
-  return `{${entries
-    .map(([key, value]) => `${key}="${escapeLabelValue(value)}"`)
-    .join(',')}}`;
-}
-
-function labelsKey(labels) {
-  return Object.entries(labels)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `${key}:${value}`)
-    .join('|');
-}
-
-function increment(map, labels, amount = 1) {
-  const key = labelsKey(labels);
-  const current = map.get(key);
-
-  if (current) {
-    current.value += amount;
-    return;
-  }
-
-  map.set(key, { labels, value: amount });
-}
-
-function observeDuration(labels, durationSeconds) {
-  const key = labelsKey(labels);
-  const current = durationHistograms.get(key) || {
-    labels,
-    buckets: new Map(durationBuckets.map((bucket) => [bucket, 0])),
-    count: 0,
-    sum: 0
-  };
-  for (const bucket of durationBuckets) {
-    if (durationSeconds <= bucket) {
-      current.buckets.set(bucket, current.buckets.get(bucket) + 1);
-    }
-  }
-
-  current.count += 1;
-  current.sum += durationSeconds;
-  durationHistograms.set(key, current);
-}
+const httpRequestDurationSeconds = new Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'HTTP request duration in seconds.',
+  labelNames: ['method', 'route'],
+  buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+  registers: [register]
+});
 
 function getStatusClass(statusCode) {
   return `${Math.floor(statusCode / 100)}xx`;
 }
 
-function metricHelp(name, help, type) {
-  return [`# HELP ${name} ${help}`, `# TYPE ${name} ${type}`];
-}
-
-function counterLines(name, values) {
-  return [...values.values()].map(({ labels, value }) => `${name}${formatLabels(labels)} ${value}`);
-}
-
-function histogramLines(name) {
-  const lines = [];
-
-  for (const histogram of durationHistograms.values()) {
-    for (const [bucket, value] of histogram.buckets.entries()) {
-      lines.push(`${name}_bucket${formatLabels({ ...histogram.labels, le: bucket })} ${value}`);
-    }
-
-    lines.push(`${name}_bucket${formatLabels({ ...histogram.labels, le: '+Inf' })} ${histogram.count}`);
-    lines.push(`${name}_sum${formatLabels(histogram.labels)} ${histogram.sum}`);
-    lines.push(`${name}_count${formatLabels(histogram.labels)} ${histogram.count}`);
-  }
-
-  return lines;
-}
-
 export function recordHttpRequest(req, res, durationSeconds) {
-  if (req.path === '/metrics') return;
+  if (ignoredRequestPaths.has(req.path)) return;
 
   const statusCode = res.statusCode;
-  const baseLabels = {
+  const labels = {
     method: req.method,
-    route: getRequestRoute(req)
-  };
-  const countLabels = {
-    ...baseLabels,
+    route: getRequestRoute(req),
     status_code: statusCode,
     status_class: getStatusClass(statusCode)
   };
 
-  increment(requestCounts, countLabels);
-  observeDuration(baseLabels, durationSeconds);
+  httpRequestsTotal.inc(labels);
+  httpRequestDurationSeconds.observe({
+    method: labels.method,
+    route: labels.route
+  }, durationSeconds);
 
-  if (statusCode >= 400) {
-    increment(errorCounts, countLabels);
-  }
 }
 
-export function renderMetrics() {
-  return [
-    ...metricHelp('http_requests_total', 'Total HTTP requests processed by the application.', 'counter'),
-    ...counterLines('http_requests_total', requestCounts),
-    '',
-    ...metricHelp('http_request_errors_total', 'Total HTTP requests completed with 4xx or 5xx status codes.', 'counter'),
-    ...counterLines('http_request_errors_total', errorCounts),
-    '',
-    ...metricHelp('http_request_duration_seconds', 'HTTP request duration in seconds.', 'histogram'),
-    ...histogramLines('http_request_duration_seconds'),
-    ''
-  ].join('\n');
+export async function renderMetrics() {
+  return register.metrics();
+}
+
+export function getMetricsContentType() {
+  return register.contentType;
 }
 
 export function resetMetrics() {
-  requestCounts.clear();
-  errorCounts.clear();
-  durationHistograms.clear();
+  register.resetMetrics();
 }
