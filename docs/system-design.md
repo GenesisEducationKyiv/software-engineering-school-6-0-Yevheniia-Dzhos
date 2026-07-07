@@ -470,6 +470,10 @@ A monolith is appropriate for the current scope because the system has one API, 
 
 Email confirmation is required to prevent users from subscribing other people’s email addresses. This reduces spam and abuse and ensures notifications are sent only to verified email owners.
 
+### ADR-004: Modular Monolith with Notification Service
+
+The architecture evolved from a single monolith into a modular monolith for core domain logic plus a separately deployed notification service for SMTP delivery. This keeps subscription and release tracking logic simple while isolating email delivery behind an HTTP service boundary.
+
 ---
 
 ## 13. Reliability and Failure Modes

@@ -1,4 +1,4 @@
-# ADR-002: Use a Modular Monolith with a Notification Service
+# ADR-002: Use Monolith Architecture
 
 ## Status
 
@@ -6,44 +6,42 @@ Accepted
 
 ## Context
 
-The project is a relatively small system with:
+The project is a relatively small service with:
 - one API
 - one database
 - one background scanner
-- a separately deployed email notification service
+- email notifications
 
-Alternatives considered:
-- a single deployable monolith
-- fully distributed microservices
+Alternative considered:
+- microservices architecture
 
 ## Decision
 
-Use a modular monolith for the API, subscriptions, repository tracking, and
-scanner. Deploy email delivery as a separate notification service.
+Use a monolithic architecture.
 
 ## Rationale
 
-The modular monolith provides:
+A monolith provides:
 - simpler development
+- easier deployment
 - lower infrastructure complexity
 - easier debugging
 - reduced operational overhead
 
-Separating notification delivery isolates SMTP concerns and allows email delivery
-to evolve independently without distributing every domain module.
+For the current scale of the project, microservices would introduce unnecessary complexity.
 
 ## Consequences
 
 ### Positive
 - faster development
 - easier local setup
+- simpler Docker deployment
 - easier debugging and testing
-- isolated email delivery
 
 ### Negative
-- the main API and scanner still scale together
-- shared root dependencies couple the two deployables
-- Docker deployment is more complex than a single monolith
+- all components scale together
+- tighter coupling between modules
+- harder future service separation
 
 ## Future Considerations
 
