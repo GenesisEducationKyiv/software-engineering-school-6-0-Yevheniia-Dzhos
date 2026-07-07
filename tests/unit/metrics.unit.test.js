@@ -7,7 +7,7 @@ import {
   recordReleaseScannerRun,
   renderMetrics,
   resetMetrics
-} from '../../src/modules/observability/metrics.js';
+} from '../../shared/observability/metrics.js';
 
 function createRequest(path, method = 'GET', routePath = path) {
   return {

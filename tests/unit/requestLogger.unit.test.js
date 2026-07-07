@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { logger } from '../../src/modules/observability/logger.js';
-import { requestLogger } from '../../src/modules/observability/requestLogger.js';
+import { logger } from '../../shared/observability/logger.js';
+import { requestLogger } from '../../shared/observability/requestLogger.js';
 
 function createResponse() {
   const listeners = new Map();

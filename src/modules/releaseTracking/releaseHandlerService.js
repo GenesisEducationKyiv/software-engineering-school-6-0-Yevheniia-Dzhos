@@ -5,8 +5,10 @@ import {
   updateLastSeenTag
 } from './trackedRepositoryRepository.js';
 import { processInChunks } from './processInChunks.js';
-import { logger } from '../observability/index.js';
-import { recordReleaseNotificationsSent } from '../observability/metrics.js';
+import {
+  logger,
+  recordReleaseNotificationsSent
+} from '../observability/index.js';
 
 export async function handleDiscoveredRelease(discovery, chunkSize) {
   const { repository, latestTag } = discovery;

@@ -4,7 +4,7 @@ import {
   getOptionalEnv,
   getPortEnv,
   getRequiredEnv
-} from '../../../src/config/envParsers.js';
+} from '../../../shared/config/envParsers.js';
 
 dotenv.config();
 

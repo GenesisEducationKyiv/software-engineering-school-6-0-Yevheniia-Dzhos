@@ -17,7 +17,10 @@ vi.mock('../../src/modules/subscriptions/index.js', () => ({
 vi.mock('../../src/modules/observability/index.js', () => ({
   logger: {
     error: vi.fn()
-  }
+  },
+  recordReleaseNotificationsSent: vi.fn(),
+  recordReleaseScannerRepositoryFailure: vi.fn(),
+  recordReleaseScannerRun: vi.fn()
 }));
 
 const githubService = await import('../../src/modules/releaseTracking/githubService.js');
