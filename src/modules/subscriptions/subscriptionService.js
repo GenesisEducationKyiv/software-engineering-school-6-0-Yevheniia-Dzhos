@@ -1,5 +1,4 @@
 import { AppError } from '../../utils/errors.js';
-import { trackRepository } from '../releaseTracking/index.js';
 import {
   normalizeSubscriptionInput,
   validateSubscriptionInput,
@@ -18,12 +17,17 @@ import {
   listSubscriptionsByEmail
 } from './subscriptionRepository.js';
 
-export async function createSubscription(input) {
+function assertTrackedRepository(repository) {
+  if (!repository?.id) {
+    throw new AppError(500, 'Tracked repository is required');
+  }
+}
+
+export async function createSubscription(input, repository) {
   const { email, repo } = normalizeSubscriptionInput(input);
 
   validateSubscriptionInput({ email, repo });
-
-  const repository = await trackRepository(repo);
+  assertTrackedRepository(repository);
 
   const existing = await findActiveSubscription(email, repository.id);
 

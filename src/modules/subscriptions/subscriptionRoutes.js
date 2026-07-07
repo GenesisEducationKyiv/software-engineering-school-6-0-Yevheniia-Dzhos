@@ -1,16 +1,19 @@
 import { Router } from 'express';
-import {
-    subscribe,
-    confirm,
-    unsubscribeUser,
-    getSubscriptions
-} from './subscriptionController.js';
+import { createSubscriptionController } from './subscriptionController.js';
 
-const router = Router();
+export function createSubscriptionRoutes(dependencies) {
+    const router = Router();
+    const {
+        subscribe,
+        confirm,
+        unsubscribeUser,
+        getSubscriptions
+    } = createSubscriptionController(dependencies);
 
-router.post('/subscribe', subscribe);
-router.get('/confirm/:token', confirm);
-router.get('/unsubscribe/:token', unsubscribeUser);
-router.get('/subscriptions', getSubscriptions);
+    router.post('/subscribe', subscribe);
+    router.get('/confirm/:token', confirm);
+    router.get('/unsubscribe/:token', unsubscribeUser);
+    router.get('/subscriptions', getSubscriptions);
 
-export default router;
+    return router;
+}

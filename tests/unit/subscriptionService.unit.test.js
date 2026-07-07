@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppError } from '../../src/utils/errors.js';
 
-vi.mock('../../src/modules/releaseTracking/index.js', () => ({
-  trackRepository: vi.fn()
-}));
 vi.mock('../../src/modules/subscriptions/subscriptionTokenService.js', () => ({
   createSubscriptionTokens: vi.fn()
 }));
@@ -19,11 +16,12 @@ vi.mock('../../src/modules/subscriptions/subscriptionRepository.js', () => ({
   listSubscriptionsByEmail: vi.fn()
 }));
 
-const releaseTrackingModule = await import('../../src/modules/releaseTracking/index.js');
 const tokenService = await import('../../src/modules/subscriptions/subscriptionTokenService.js');
 const notificationService = await import('../../src/modules/notifications/index.js');
 const subscriptionRepository = await import('../../src/modules/subscriptions/subscriptionRepository.js');
 const subscriptionService = await import('../../src/modules/subscriptions/subscriptionService.js');
+
+const trackedRepository = { id: 7, full_name: 'owner/repo' };
 
 describe('subscription service', () => {
   beforeEach(() => {
@@ -31,7 +29,6 @@ describe('subscription service', () => {
   });
 
   it('creates a subscription through repository, token and notification collaborators', async () => {
-    releaseTrackingModule.trackRepository.mockResolvedValue({ id: 7 });
     subscriptionRepository.findActiveSubscription.mockResolvedValue(null);
     tokenService.createSubscriptionTokens.mockReturnValue({
       confirmToken: 'confirm-token-123',
@@ -41,9 +38,8 @@ describe('subscription service', () => {
     await subscriptionService.createSubscription({
       email: ' User@Example.com ',
       repo: 'owner/repo'
-    });
+    }, trackedRepository);
 
-    expect(releaseTrackingModule.trackRepository).toHaveBeenCalledWith('owner/repo');
     expect(subscriptionRepository.createSubscriptionRecord)
       .toHaveBeenCalledWith('user@example.com', 7, 'confirm-token-123', 'unsubscribe-token-123');
     expect(notificationService.sendSubscriptionConfirmation)
@@ -51,20 +47,18 @@ describe('subscription service', () => {
   });
 
   it('rejects duplicate active subscriptions', async () => {
-    releaseTrackingModule.trackRepository.mockResolvedValue({ id: 7 });
     subscriptionRepository.findActiveSubscription.mockResolvedValue({ id: 99, confirmed: true });
 
     await expect(subscriptionService.createSubscription({
       email: 'user@example.com',
       repo: 'owner/repo'
-    })).rejects.toMatchObject({
+    }, trackedRepository)).rejects.toMatchObject({
       status: 409,
       message: 'Email already subscribed to this repository'
     });
   });
 
   it('resends confirmation for an existing pending subscription', async () => {
-    releaseTrackingModule.trackRepository.mockResolvedValue({ id: 7 });
     subscriptionRepository.findActiveSubscription.mockResolvedValue({
       id: 99,
       confirmed: false,
@@ -74,7 +68,7 @@ describe('subscription service', () => {
     await subscriptionService.createSubscription({
       email: 'user@example.com',
       repo: 'owner/repo'
-    });
+    }, trackedRepository);
 
     expect(tokenService.createSubscriptionTokens).not.toHaveBeenCalled();
     expect(subscriptionRepository.createSubscriptionRecord).not.toHaveBeenCalled();
@@ -125,6 +119,16 @@ describe('subscription service', () => {
   it('fails fast on invalid create input without external calls', async () => {
     await expect(subscriptionService.createSubscription({ email: 'bad', repo: 'bad' }))
       .rejects.toBeInstanceOf(AppError);
-    expect(releaseTrackingModule.trackRepository).not.toHaveBeenCalled();
+    expect(subscriptionRepository.findActiveSubscription).not.toHaveBeenCalled();
+  });
+
+  it('requires a tracked repository from the orchestration layer', async () => {
+    await expect(subscriptionService.createSubscription({
+      email: 'user@example.com',
+      repo: 'owner/repo'
+    })).rejects.toMatchObject({
+      status: 500,
+      message: 'Tracked repository is required'
+    });
   });
 });
