@@ -41,7 +41,7 @@ export function createApp() {
       }
 
       await sendSubscriptionConfirmation(body.email, body.token, body.repo);
-      res.status(202).json({ status: 'accepted' });
+      res.status(200).json({ status: 'sent' });
     } catch (error) {
       next(error);
     }
@@ -64,7 +64,7 @@ export function createApp() {
         body.tag,
         body.unsubscribeToken
       );
-      res.status(202).json({ status: 'accepted' });
+      res.status(200).json({ status: 'sent' });
     } catch (error) {
       next(error);
     }

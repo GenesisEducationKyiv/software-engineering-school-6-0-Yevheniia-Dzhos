@@ -85,7 +85,7 @@ with the notification service through HTTP using the client exposed by
 }
 ```
 
-The notification service returns `202 Accepted` after accepting a valid
+The notification service returns `200 OK` after sending a valid
 notification request. Invalid payloads return `400`. Delivery failures return
 `500`, which the monolith exposes as a `502` dependency failure.
 

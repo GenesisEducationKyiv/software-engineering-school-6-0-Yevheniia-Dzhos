@@ -20,7 +20,7 @@ describe('notification service app', () => {
     vi.clearAllMocks();
   });
 
-  it('accepts subscription confirmation notifications', async () => {
+  it('handles subscription confirmation notifications', async () => {
     const response = await request(createApp())
       .post('/notifications/subscription-confirmation')
       .send({
@@ -29,7 +29,8 @@ describe('notification service app', () => {
         repo: 'owner/repo'
       });
 
-    expect(response.status).toBe(202);
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ status: 'sent' });
     expect(notificationService.sendSubscriptionConfirmation)
       .toHaveBeenCalledWith('user@example.com', 'token-123', 'owner/repo');
   });
@@ -42,6 +43,23 @@ describe('notification service app', () => {
     expect(response.status).toBe(400);
     expect(notificationService.sendReleaseNotification).not.toHaveBeenCalled();
   });
+
+  it('handles release notifications', async () => {
+    const response = await request(createApp())
+      .post('/notifications/release')
+      .send({
+        email: 'user@example.com',
+        repo: 'owner/repo',
+        tag: 'v1.2.3',
+        unsubscribeToken: 'unsubscribe-token'
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ status: 'sent' });
+    expect(notificationService.sendReleaseNotification)
+      .toHaveBeenCalledWith('user@example.com', 'owner/repo', 'v1.2.3', 'unsubscribe-token');
+  });
+
 
   it('reports readiness when SMTP is available', async () => {
     const response = await request(createApp()).get('/health/ready');
@@ -77,7 +95,7 @@ describe('notification service app', () => {
     expect(healthResponse.headers['x-request-id']).toBe('request-123');
     expect(metricsResponse.status).toBe(200);
     expect(metricsResponse.text).toContain(
-      'http_requests_total{method="POST",route="/notifications/subscription-confirmation",status_code="202",status_class="2xx"}'
+      'http_requests_total{method="POST",route="/notifications/subscription-confirmation",status_code="200",status_class="2xx"}'
     );
   });
 });
