@@ -51,8 +51,7 @@ The service owns:
 
 - SMTP and Nodemailer configuration
 - email templates
-- confirmation email delivery
-- release notification delivery
+- template-based email delivery
 
 The monolith no longer imports email delivery implementation. It communicates
 with the notification service through HTTP using the client exposed by
@@ -60,28 +59,37 @@ with the notification service through HTTP using the client exposed by
 
 ## Internal HTTP Contract
 
-### Subscription Confirmation
+### Send Templated Email
 
-`POST /notifications/subscription-confirmation`
+`POST /notifications/email`
 
 ```json
 {
-  "email": "user@example.com",
-  "token": "confirmation-token",
-  "repo": "owner/repository"
+  "to": "user@example.com",
+  "templateId": "subscription-confirmation",
+  "data": {
+    "token": "confirmation-token",
+    "repo": "owner/repository"
+  }
 }
 ```
 
-### Release Notification
+The main application chooses the `templateId` and provides the template data.
+The notification service validates that the requested template exists and that
+its required fields are present.
 
-`POST /notifications/release`
+Example release notification payload:
+
 
 ```json
 {
-  "email": "user@example.com",
-  "repo": "owner/repository",
-  "tag": "v1.0.0",
-  "unsubscribeToken": "unsubscribe-token"
+  "to": "user@example.com",
+  "templateId": "release-notification",
+  "data": {
+    "repo": "owner/repository",
+    "tag": "v1.0.0",
+    "unsubscribeToken": "unsubscribe-token"
+  }
 }
 ```
 

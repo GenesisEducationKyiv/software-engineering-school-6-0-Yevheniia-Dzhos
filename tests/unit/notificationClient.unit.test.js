@@ -29,14 +29,17 @@ describe('notification client', () => {
     await sendSubscriptionConfirmation('user@example.com', 'token-123', 'owner/repo');
 
     expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/notifications/subscription-confirmation'),
+      expect.stringContaining('/notifications/email'),
       expect.objectContaining({
         method: 'POST',
         signal: expect.any(AbortSignal),
         body: JSON.stringify({
-          email: 'user@example.com',
-          token: 'token-123',
-          repo: 'owner/repo'
+          to: 'user@example.com',
+          templateId: 'subscription-confirmation',
+          data: {
+            token: 'token-123',
+            repo: 'owner/repo'
+          }
         })
       })
     );
@@ -88,7 +91,7 @@ describe('notification client', () => {
     await sendSubscriptionConfirmation('user@example.com', 'token-123', 'owner/repo');
 
     expect(global.fetch.mock.calls[0][0].toString()).toBe(
-      'http://localhost:3002/notifications/subscription-confirmation'
+      'http://localhost:3002/notifications/email'
     );
   });
 });

@@ -24,18 +24,24 @@ async function sendNotification(path, payload) {
 }
 
 export async function sendSubscriptionConfirmation(email, token, repo) {
-  await sendNotification('/notifications/subscription-confirmation', {
-    email,
-    token,
-    repo
+  await sendNotification('/notifications/email', {
+    to: email,
+    templateId: 'subscription-confirmation',
+    data: {
+      token,
+      repo
+    }
   });
 }
 
 export async function sendReleaseNotification(email, repo, tag, unsubscribeToken) {
-  await sendNotification('/notifications/release', {
-    email,
-    repo,
-    tag,
-    unsubscribeToken
+  await sendNotification('/notifications/email', {
+    to: email,
+    templateId: 'release-notification',
+    data: {
+      repo,
+      tag,
+      unsubscribeToken
+    }
   });
 }

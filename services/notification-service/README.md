@@ -7,10 +7,24 @@ that knows about SMTP, Nodemailer, and email templates.
 ## Endpoints
 
 - `GET /health`
+- `GET /health/live`
 - `GET /health/ready`
 - `GET /metrics`
-- `POST /notifications/subscription-confirmation`
-- `POST /notifications/release`
+- `POST /notifications/email`
+
+`POST /notifications/email` accepts a recipient, a template identifier, and
+template data:
+
+```json
+{
+  "to": "user@example.com",
+  "templateId": "subscription-confirmation",
+  "data": {
+    "token": "confirmation-token",
+    "repo": "owner/repository"
+  }
+}
+```
 
 ## Local Start
 

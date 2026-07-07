@@ -1,6 +1,23 @@
 import { env } from './config.js';
 
-export function confirmationEmailTemplate(token, repo) {
+class TemplateError extends Error {
+    constructor(message) {
+        super(message);
+        this.status = 400;
+    }
+}
+
+function requireTemplateFields(templateId, data, fields) {
+    const missingField = fields.find((field) => {
+        return typeof data[field] !== 'string' || data[field].trim().length === 0;
+    });
+
+    if (missingField) {
+        throw new TemplateError(`Template ${templateId} requires ${missingField}`);
+    }
+}
+
+function confirmationEmailTemplate({ token, repo }) {
     const confirmUrl = `${env.appBaseUrl}/api/confirm/${token}`;
 
     return `
@@ -11,7 +28,7 @@ export function confirmationEmailTemplate(token, repo) {
     </div>`;
 }
 
-export function releaseEmailTemplate(repo, tag, unsubscribeToken) {
+function releaseEmailTemplate({ repo, tag, unsubscribeToken }) {
     const unsubscribeUrl = `${env.appBaseUrl}/api/unsubscribe/${unsubscribeToken}`;
     const releaseUrl = `https://github.com/${repo}/releases/tag/${encodeURIComponent(tag)}`;
 
@@ -24,4 +41,32 @@ export function releaseEmailTemplate(repo, tag, unsubscribeToken) {
         <a href="${unsubscribeUrl}" style="display:inline-block;padding:12px 18px;background:#1a233d;color:#fff;text-decoration:none;border-radius:12px;">Unsubscribe</a>
       </p>
     </div>`;
+}
+
+const templates = {
+    'subscription-confirmation': {
+        fields: ['token', 'repo'],
+        subject: ({ repo }) => `Confirm subscription for ${repo}`,
+        html: confirmationEmailTemplate
+    },
+    'release-notification': {
+        fields: ['repo', 'tag', 'unsubscribeToken'],
+        subject: ({ repo, tag }) => `New release in ${repo}: ${tag}`,
+        html: releaseEmailTemplate
+    }
+};
+
+export function renderEmailTemplate(templateId, data) {
+    const template = templates[templateId];
+
+    if (!template) {
+        throw new TemplateError(`Unknown email template: ${templateId}`);
+    }
+
+    requireTemplateFields(templateId, data, template.fields);
+
+    return {
+        subject: template.subject(data),
+        html: template.html(data)
+    };
 }

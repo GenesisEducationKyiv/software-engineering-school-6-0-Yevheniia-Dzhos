@@ -1,8 +1,6 @@
 import express from 'express';
-import {
-  sendReleaseNotification,
-  sendSubscriptionConfirmation
-} from './notificationService.js';
+import { createHealthRoutes } from '../../../shared/health/index.js';
+import { sendNotificationEmail } from './notificationService.js';
 import { verifyEmailConnection } from './emailClient.js';
 import { logger, registerObservability } from './observability.js';
 
@@ -17,55 +15,25 @@ export function createApp() {
 
   registerObservability(app);
   app.use(express.json());
+  app.use(createHealthRoutes({ readinessCheck: verifyEmailConnection }));
 
-  app.get('/health', (_req, res) => {
-    res.json({ status: 'ok' });
-  });
-
-  app.get('/health/ready', async (_req, res) => {
-    try {
-      await verifyEmailConnection();
-      res.json({ status: 'ready' });
-    } catch {
-      res.status(503).json({ status: 'not ready' });
-    }
-  });
-
-  app.post('/notifications/subscription-confirmation', async (req, res, next) => {
+  app.post('/notifications/email', async (req, res, next) => {
     try {
       const body = req.body || {};
 
-      if (!requireFields(body, ['email', 'token', 'repo'])) {
-        res.status(400).json({ error: 'email, token and repo are required' });
+      if (!requireFields(body, ['to', 'templateId']) || !body.data || typeof body.data !== 'object') {
+        res.status(400).json({ error: 'to, templateId and data are required' });
         return;
       }
 
-      await sendSubscriptionConfirmation(body.email, body.token, body.repo);
+      await sendNotificationEmail(body.to, body.templateId, body.data);
       res.status(200).json({ status: 'sent' });
     } catch (error) {
-      next(error);
-    }
-  });
-
-  app.post('/notifications/release', async (req, res, next) => {
-    try {
-      const body = req.body || {};
-
-      if (!requireFields(body, ['email', 'repo', 'tag', 'unsubscribeToken'])) {
-        res.status(400).json({
-          error: 'email, repo, tag and unsubscribeToken are required'
-        });
+      if (error.status === 400) {
+        res.status(400).json({ error: error.message });
         return;
       }
 
-      await sendReleaseNotification(
-        body.email,
-        body.repo,
-        body.tag,
-        body.unsubscribeToken
-      );
-      res.status(200).json({ status: 'sent' });
-    } catch (error) {
       next(error);
     }
   });

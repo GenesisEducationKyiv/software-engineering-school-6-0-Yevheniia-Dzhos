@@ -2,8 +2,7 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../services/notification-service/src/notificationService.js', () => ({
-  sendSubscriptionConfirmation: vi.fn(),
-  sendReleaseNotification: vi.fn()
+  sendNotificationEmail: vi.fn()
 }));
 vi.mock('../../services/notification-service/src/emailClient.js', () => ({
   verifyEmailConnection: vi.fn()
@@ -17,49 +16,58 @@ const { createApp } = await import('../../services/notification-service/src/app.
 
 describe('notification service app', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    notificationService.sendNotificationEmail.mockResolvedValue(undefined);
+    emailClient.verifyEmailConnection.mockResolvedValue(undefined);
   });
 
-  it('handles subscription confirmation notifications', async () => {
+  it('handles templated email notifications', async () => {
     const response = await request(createApp())
-      .post('/notifications/subscription-confirmation')
+      .post('/notifications/email')
       .send({
-        email: 'user@example.com',
+        to: 'user@example.com',
+        templateId: 'subscription-confirmation',
+        data: {
+          token: 'token-123',
+          repo: 'owner/repo'
+        }
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ status: 'sent' });
+    expect(notificationService.sendNotificationEmail)
+      .toHaveBeenCalledWith('user@example.com', 'subscription-confirmation', {
         token: 'token-123',
         repo: 'owner/repo'
       });
-
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual({ status: 'sent' });
-    expect(notificationService.sendSubscriptionConfirmation)
-      .toHaveBeenCalledWith('user@example.com', 'token-123', 'owner/repo');
   });
 
-  it('rejects incomplete release notifications', async () => {
+  it('rejects incomplete templated email notifications', async () => {
     const response = await request(createApp())
-      .post('/notifications/release')
-      .send({ email: 'user@example.com' });
+      .post('/notifications/email')
+      .send({ to: 'user@example.com' });
 
     expect(response.status).toBe(400);
-    expect(notificationService.sendReleaseNotification).not.toHaveBeenCalled();
+    expect(notificationService.sendNotificationEmail).not.toHaveBeenCalled();
   });
 
-  it('handles release notifications', async () => {
+  it('returns template validation errors as bad requests', async () => {
+    notificationService.sendNotificationEmail.mockRejectedValue(Object.assign(
+      new Error('Unknown email template: missing-template'),
+      { status: 400 }
+    ));
+
     const response = await request(createApp())
-      .post('/notifications/release')
+      .post('/notifications/email')
       .send({
-        email: 'user@example.com',
-        repo: 'owner/repo',
-        tag: 'v1.2.3',
-        unsubscribeToken: 'unsubscribe-token'
+        to: 'user@example.com',
+        templateId: 'missing-template',
+        data: {}
       });
 
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual({ status: 'sent' });
-    expect(notificationService.sendReleaseNotification)
-      .toHaveBeenCalledWith('user@example.com', 'owner/repo', 'v1.2.3', 'unsubscribe-token');
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: 'Unknown email template: missing-template' });
   });
-
 
   it('reports readiness when SMTP is available', async () => {
     const response = await request(createApp()).get('/health/ready');
@@ -67,6 +75,14 @@ describe('notification service app', () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ status: 'ready' });
     expect(emailClient.verifyEmailConnection).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports liveness without checking SMTP', async () => {
+    const response = await request(createApp()).get('/health/live');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ status: 'ok' });
+    expect(emailClient.verifyEmailConnection).not.toHaveBeenCalled();
   });
 
   it('reports not ready when SMTP is unavailable', async () => {
@@ -84,18 +100,21 @@ describe('notification service app', () => {
       .get('/health')
       .set('x-request-id', 'request-123');
     await request(app)
-      .post('/notifications/subscription-confirmation')
+      .post('/notifications/email')
       .send({
-        email: 'metrics@example.com',
-        token: 'token-123',
-        repo: 'owner/repo'
+        to: 'metrics@example.com',
+        templateId: 'subscription-confirmation',
+        data: {
+          token: 'token-123',
+          repo: 'owner/repo'
+        }
       });
     const metricsResponse = await request(app).get('/metrics');
 
     expect(healthResponse.headers['x-request-id']).toBe('request-123');
     expect(metricsResponse.status).toBe(200);
     expect(metricsResponse.text).toContain(
-      'http_requests_total{method="POST",route="/notifications/subscription-confirmation",status_code="200",status_class="2xx"}'
+      'http_requests_total{method="POST",route="/notifications/email",status_code="200",status_class="2xx"}'
     );
   });
 });
