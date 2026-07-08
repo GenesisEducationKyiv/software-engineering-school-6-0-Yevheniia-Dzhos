@@ -27,8 +27,8 @@ acknowledgements. Failed commands are dead-lettered to a retry queue and return
 after a configurable TTL. After the configured maximum attempts, the consumer
 publishes the command to the dead-letter exchange.
 
-The consumer stores successful message IDs in PostgreSQL `processed_messages`.
-Redelivered IDs are acknowledged without sending another email.
+The consumer claims message IDs in PostgreSQL `processed_messages` before
+email delivery. Redelivered IDs are acknowledged without sending another email.
 
 ## Consequences
 
@@ -38,4 +38,5 @@ Redelivered IDs are acknowledged without sending another email.
 - Multiple notification-service instances can act as competing consumers.
 - RabbitMQ and PostgreSQL become runtime dependencies of notification-service.
 - SMTP delivery and the processed-message record cannot be committed
-  atomically, so a crash between them can still produce a duplicate email.
+  atomically, so a crash after claiming but before SMTP delivery can require
+  manual investigation.
