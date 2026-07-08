@@ -7,7 +7,8 @@ vi.mock('../../services/notification-service/src/notificationService.js', () => 
 }));
 vi.mock('../../services/notification-service/src/processedMessageRepository.js', () => ({
   hasProcessedMessage: vi.fn(),
-  recordProcessedMessage: vi.fn()
+  recordProcessedMessage: vi.fn(),
+  deleteProcessedMessage: vi.fn()
 }));
 
 const notificationService = await import(
@@ -66,6 +67,7 @@ describe('notification consumer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     processedMessages.hasProcessedMessage.mockResolvedValue(false);
+    processedMessages.recordProcessedMessage.mockResolvedValue(true);
   });
 
   it('consumes and acknowledges subscription confirmation commands', async () => {
@@ -88,7 +90,7 @@ describe('notification consumer', () => {
 
     expect(channel.prefetch).toHaveBeenCalledWith(1);
     expect(notificationService.sendSubscriptionConfirmation)
-      .toHaveBeenCalledWith('user@example.com', 'token-123', 'owner/repo');
+      .toHaveBeenCalledWith('user@example.com', 'token-123', 'owner/repo', 'message-1');
     expect(processedMessages.recordProcessedMessage)
       .toHaveBeenCalledWith('message-1', 'notification.subscription-confirmation.send');
     expect(channel.ack).toHaveBeenCalledWith(message);
@@ -127,6 +129,9 @@ describe('notification consumer', () => {
         error: expect.any(Error)
       })
     );
+    expect(processedMessages.recordProcessedMessage)
+      .toHaveBeenCalledWith('message-1', 'notification.release.send');
+    expect(processedMessages.deleteProcessedMessage).toHaveBeenCalledWith('message-1');
   });
 
   it('acknowledges already processed commands without sending another email', async () => {
@@ -146,6 +151,30 @@ describe('notification consumer', () => {
     expect(notificationService.sendReleaseNotification).not.toHaveBeenCalled();
     expect(processedMessages.recordProcessedMessage).not.toHaveBeenCalled();
     expect(channel.ack).toHaveBeenCalledWith(message);
+  });
+
+  it('acknowledges commands that were claimed by another consumer', async () => {
+    processedMessages.recordProcessedMessage.mockResolvedValue(false);
+    const channel = createChannel();
+    const consumer = createNotificationConsumer({
+      brokerClient: { createConfirmChannel: vi.fn().mockResolvedValue(channel) },
+      topology,
+      reconnectDelayMs: 1000,
+      logger: { error: vi.fn() }
+    });
+
+    await consumer.start();
+    const message = createMessage('notification.release.send', {
+      email: 'user@example.com',
+      repo: 'owner/repo',
+      tag: 'v1.0.0',
+      unsubscribeToken: 'unsubscribe-token'
+    });
+    await channel.consume.mock.calls[0][1](message);
+
+    expect(notificationService.sendReleaseNotification).not.toHaveBeenCalled();
+    expect(channel.ack).toHaveBeenCalledWith(message);
+    expect(channel.nack).not.toHaveBeenCalled();
   });
 
   it('moves a command to the dead-letter exchange after the final attempt', async () => {

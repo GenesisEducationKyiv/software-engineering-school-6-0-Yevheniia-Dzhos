@@ -27,11 +27,32 @@ describe('processed message repository', () => {
   it('records processed messages idempotently', async () => {
     database.query.mockResolvedValue({ rowCount: 1 });
 
-    await repository.recordProcessedMessage('message-1', 'notification.release.send');
+    await expect(
+      repository.recordProcessedMessage('message-1', 'notification.release.send')
+    ).resolves.toBe(true);
 
     expect(database.query).toHaveBeenCalledWith(
       expect.stringContaining('ON CONFLICT (message_id) DO NOTHING'),
       ['message-1', 'notification.release.send']
+    );
+  });
+
+  it('reports when a processed message already exists', async () => {
+    database.query.mockResolvedValue({ rowCount: 0 });
+
+    await expect(
+      repository.recordProcessedMessage('message-1', 'notification.release.send')
+    ).resolves.toBe(false);
+  });
+
+  it('deletes a processed message claim', async () => {
+    database.query.mockResolvedValue({ rowCount: 1 });
+
+    await repository.deleteProcessedMessage('message-1');
+
+    expect(database.query).toHaveBeenCalledWith(
+      'DELETE FROM processed_messages WHERE message_id = $1',
+      ['message-1']
     );
   });
 });

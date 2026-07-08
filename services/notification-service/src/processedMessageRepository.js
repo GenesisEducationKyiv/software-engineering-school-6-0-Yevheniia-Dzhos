@@ -10,10 +10,19 @@ export async function hasProcessedMessage(messageId) {
 }
 
 export async function recordProcessedMessage(messageId, messageType) {
-  await query(
+  const result = await query(
     `INSERT INTO processed_messages (message_id, message_type)
      VALUES ($1, $2)
      ON CONFLICT (message_id) DO NOTHING`,
     [messageId, messageType]
+  );
+
+  return result.rowCount > 0;
+}
+
+export async function deleteProcessedMessage(messageId) {
+  await query(
+    'DELETE FROM processed_messages WHERE message_id = $1',
+    [messageId]
   );
 }

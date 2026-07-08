@@ -7,6 +7,7 @@ import {
   sendSubscriptionConfirmation
 } from './notificationService.js';
 import {
+  deleteProcessedMessage,
   hasProcessedMessage,
   recordProcessedMessage
 } from './processedMessageRepository.js';
@@ -16,13 +17,13 @@ const handlers = {
     email,
     token,
     repo
-  }) => sendSubscriptionConfirmation(email, token, repo),
+  }, command) => sendSubscriptionConfirmation(email, token, repo, command.id),
   [notificationCommands.release]: ({
     email,
     repo,
     tag,
     unsubscribeToken
-  }) => sendReleaseNotification(email, repo, tag, unsubscribeToken)
+  }, command) => sendReleaseNotification(email, repo, tag, unsubscribeToken, command.id)
 };
 
 export function createNotificationConsumer({
@@ -117,8 +118,23 @@ export function createNotificationConsumer({
         return;
       }
 
-      await handler(command.payload);
-      await recordProcessedMessage(command.id, command.type);
+      // Claim before sending: if the process crashes mid-send, the claim
+      // already exists so a redelivery won't send a duplicate email. If the
+      // handler fails with a normal error (not a crash), the claim is rolled
+      // back so the retry/dead-letter flow below can still process it.
+      const claimed = await recordProcessedMessage(command.id, command.type);
+      if (!claimed) {
+        deliveryChannel.ack(message);
+        return;
+      }
+
+      try {
+        await handler(command.payload, command);
+      } catch (error) {
+        await deleteProcessedMessage(command.id);
+        throw error;
+      }
+
       deliveryChannel.ack(message);
     } catch (error) {
       logger.error('Notification command handling failed', {
