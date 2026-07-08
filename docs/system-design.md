@@ -37,7 +37,7 @@ The system must support:
 | Availability | Service should remain available even if scanning one repository fails. Scanner errors are isolated per repository. |
 | Consistency | PostgreSQL is the source of truth for repositories, subscriptions, tokens, confirmation status, and last seen release tags. |
 | Security | Email confirmation is required before notifications are sent. Tokens are random and stored in the database. |
-| Maintainability | Monolithic architecture keeps the project simple and easy to run locally. |
+| Maintainability | Modular main app boundaries and an extracted notification service keep responsibilities explicit while the system remains easy to run locally. |
 | Scalability | Current design supports the expected project workload. |
 | Observability | Basic health check exists. |
 
@@ -77,11 +77,15 @@ Outgoing traffic mainly consists of GitHub API requests and email notifications.
 
 ## High-Level Architecture
 
-![Architecture Diagram](./system-design-diagram.png)
+![Architecture Diagram](./system-design-diagram.svg)
 
 ### Architecture Style
 
-The accepted architecture is a monolith. This is appropriate because the project currently has one API, one database, one scanner, and one email-notification responsibility. It avoids the operational overhead of microservices while keeping the codebase easy to test and deploy.
+The accepted architecture is a modular main application with an extracted
+notification service. The main application owns the public API, subscription
+state, release scanning, saga orchestration, and repository tracking. The
+notification service owns email delivery and can be reached through REST, gRPC,
+or RabbitMQ depending on the flow.
 
 ---
 
@@ -204,15 +208,16 @@ Scanner algorithm:
 3. Skip the repository if GitHub returns no latest release.
 4. Skip the repository if the latest tag equals `last_seen_tag`.
 5. Load confirmed subscribers for the repository.
-6. Send release notification emails.
-7. Update `repositories.last_seen_tag` after notifications are sent.
-8. Log and skip failures per repository so one bad repository does not stop the whole scan.
+6. Publish release notification commands through RabbitMQ.
+7. Notification service consumes commands and sends emails through SMTP.
+8. Update `repositories.last_seen_tag` after notification commands are published.
+9. Log and skip failures per repository so one bad repository does not stop the whole scan.
 
 This design is simple and reliable enough for the current project size, but it is sequential. For larger scale, it should be replaced or extended with a queue and worker model.
 
 ### 5.7 Email Service
 
-The application sends emails through SMTP using Nodemailer.
+The extracted notification service sends emails through SMTP using Nodemailer.
 
 It sends two email types:
 
@@ -245,7 +250,9 @@ Subscription Service
   +--> PostgreSQL: check duplicate subscription
   +--> generate confirm and unsubscribe tokens
   +--> PostgreSQL: insert unconfirmed subscription
-  +--> SMTP: send confirmation email
+  +--> Saga: start subscription confirmation saga
+  +--> Notification Service (gRPC): send confirmation email
+  +--> SMTP/MailHog: deliver confirmation email
   |
   v
 Response: 200 Confirmation email sent
@@ -283,7 +290,9 @@ Release Scanner
   +--> GitHub API: fetch latest release tag
   +--> compare latestTag with last_seen_tag
   +--> PostgreSQL: load active subscribers
-  +--> SMTP: send release notification emails
+  +--> RabbitMQ: publish release notification commands
+  +--> Notification Service: consume commands and send emails
+  +--> SMTP/MailHog: deliver release emails
   +--> PostgreSQL: update last_seen_tag
 ```
 
