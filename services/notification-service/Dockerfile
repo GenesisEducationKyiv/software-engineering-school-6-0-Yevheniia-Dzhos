@@ -2,11 +2,11 @@ FROM node:26-alpine
 
 WORKDIR /app
 
-COPY services/notification-service/package*.json ./
+COPY package*.json ./
 RUN npm ci --omit=dev
 
+COPY packages/shared ./packages/shared
 COPY services/notification-service ./services/notification-service
-COPY shared ./shared
 
 EXPOSE 3002
 

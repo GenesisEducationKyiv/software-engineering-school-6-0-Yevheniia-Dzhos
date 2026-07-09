@@ -1,4 +1,4 @@
-import { AppError } from '../../utils/errors.js';
+import { AppError } from '@notifier/shared/utils/errors.js';
 import { ensureRepositoryExists, fetchLatestReleaseTag } from './githubService.js';
 import {
   upsertTrackedRepository,

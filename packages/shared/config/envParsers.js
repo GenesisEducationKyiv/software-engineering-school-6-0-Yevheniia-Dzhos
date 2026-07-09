@@ -42,3 +42,4 @@ export function getBooleanEnv(name, defaultValue = false) {
 
   return value === 'true';
 }
+

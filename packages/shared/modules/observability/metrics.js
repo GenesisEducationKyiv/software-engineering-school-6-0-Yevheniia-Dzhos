@@ -1,6 +1,6 @@
 import client from 'prom-client';
 
-const { Registry, Counter, Histogram, collectDefaultMetrics } = client;
+const { Registry, Counter, Gauge, Histogram, collectDefaultMetrics } = client;
 const ignoredRequestPaths = new Set(['/health', '/metrics']);
 
 function getStatusClass(statusCode) {
@@ -81,6 +81,12 @@ export function createMetrics() {
     registers: [register]
   });
 
+  const notificationMessagesInFlight = new Gauge({
+    name: 'notification_messages_in_flight',
+    help: 'Number of notification commands currently being processed.',
+    registers: [register]
+  });
+
   function recordHttpRequest(req, res, durationSeconds) {
     if (ignoredRequestPaths.has(req.path)) return;
 
@@ -114,6 +120,10 @@ export function createMetrics() {
     releaseScannerRepositoryFailuresTotal.inc({ repository });
   }
 
+  function setNotificationMessagesInFlight(count) {
+    notificationMessagesInFlight.set(count);
+  }
+
   async function renderMetrics() {
     return register.metrics();
   }
@@ -131,6 +141,7 @@ export function createMetrics() {
     recordReleaseScannerRun,
     recordReleaseNotificationsSent,
     recordReleaseScannerRepositoryFailure,
+    setNotificationMessagesInFlight,
     renderMetrics,
     getMetricsContentType,
     resetMetrics
@@ -142,6 +153,7 @@ export const {
   recordReleaseScannerRun,
   recordReleaseNotificationsSent,
   recordReleaseScannerRepositoryFailure,
+  setNotificationMessagesInFlight,
   renderMetrics,
   getMetricsContentType,
   resetMetrics

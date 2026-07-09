@@ -39,7 +39,15 @@ Provides shared operational capabilities:
 - HTTP metrics
 - `/metrics` endpoint registration
 
-Public API: `src/modules/observability/index.js`
+Public API: `packages/shared/modules/observability/index.js`
+
+### Messaging
+
+Provides the shared RabbitMQ connection, notification topology, and publisher.
+Lives in `packages/shared` since both the main app and the notification-service
+consume it.
+
+Public API: `packages/shared/modules/messaging`
 
 ## Extracted Microservice
 
@@ -51,41 +59,42 @@ The service owns:
 
 - SMTP and Nodemailer configuration
 - email templates
-- template-based email delivery
+- confirmation email delivery
+- release notification delivery
 
-The monolith no longer imports email delivery implementation. It communicates
-with the notification service through HTTP using the client exposed by
-`src/modules/notifications/index.js`.
+The monolith no longer imports email delivery implementation. It publishes
+commands through RabbitMQ using `src/modules/notifications/index.js`.
 
-## Internal HTTP Contract
+## Notification Command Contract
 
-### Send Templated Email
+### Subscription Confirmation
 
-`POST /notifications/email`
+Routing key: `notification.subscription-confirmation.send`
 
 ```json
 {
-  "to": "user@example.com",
-  "templateId": "subscription-confirmation",
-  "data": {
+  "id": "message-id",
+  "type": "notification.subscription-confirmation.send",
+  "occurredAt": "2026-06-14T00:00:00.000Z",
+  "payload": {
+    "email": "user@example.com",
     "token": "confirmation-token",
     "repo": "owner/repository"
   }
 }
 ```
 
-The main application chooses the `templateId` and provides the template data.
-The notification service validates that the requested template exists and that
-its required fields are present.
+### Release Notification
 
-Example release notification payload:
-
+Routing key: `notification.release.send`
 
 ```json
 {
-  "to": "user@example.com",
-  "templateId": "release-notification",
-  "data": {
+  "id": "message-id",
+  "type": "notification.release.send",
+  "occurredAt": "2026-06-14T00:00:00.000Z",
+  "payload": {
+    "email": "user@example.com",
     "repo": "owner/repository",
     "tag": "v1.0.0",
     "unsubscribeToken": "unsubscribe-token"
@@ -93,11 +102,12 @@ Example release notification payload:
 }
 ```
 
-The notification service returns `200 OK` after sending a valid
-notification request. Invalid payloads return `400`. Delivery failures return
-`500`, which the monolith exposes as a `502` dependency failure.
+The publisher uses RabbitMQ confirms. Publishing failures are exposed by the
+monolith as a `502` dependency failure. The consumer acknowledges commands only
+after successful email delivery.
 
 ## Data Ownership
 
-The main application owns PostgreSQL and all subscription and repository data.
-The notification service is stateless and does not access the main database.
+The main application owns subscription, repository, and release data. The
+notification service uses the shared PostgreSQL instance only for the
+`processed_messages` idempotency table.

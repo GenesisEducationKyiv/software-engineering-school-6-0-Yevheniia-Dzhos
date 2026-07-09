@@ -7,6 +7,13 @@ import { createMetricsMiddleware } from './metricsMiddleware.js';
 import { createMetrics } from './metrics.js';
 
 export { logger } from './logger.js';
+export {
+  recordHttpRequest,
+  recordReleaseNotificationsSent,
+  recordReleaseScannerRepositoryFailure,
+  recordReleaseScannerRun,
+  setNotificationMessagesInFlight
+} from './metrics.js';
 
 export function registerObservability(app) {
   app.use(requestLogger);
@@ -28,6 +35,7 @@ export function createObservability(serviceName) {
 
   return {
     logger,
+    setNotificationMessagesInFlight: metrics.setNotificationMessagesInFlight,
     registerObservability(app) {
       app.use(requestLogger);
       app.use(metricsMiddleware);

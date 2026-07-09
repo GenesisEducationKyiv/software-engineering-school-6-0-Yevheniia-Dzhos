@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AppError } from '../../src/utils/errors.js';
+import { AppError } from '@notifier/shared/utils/errors.js';
 
 vi.mock('../../src/modules/subscriptions/subscriptionTokenService.js', () => ({
   createSubscriptionTokens: vi.fn()

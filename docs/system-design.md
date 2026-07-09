@@ -418,11 +418,17 @@ Expected deployment services:
 | Node.js API       |
 | Express + scanner |
 +-------------------+
-          |
-          v
+     |          |
+     v          v
++---------+  +-------------------+
+| db      |  | RabbitMQ          |
+| Postgres|  | command broker    |
++---------+  +-------------------+
+                   |
+                   v
 +-------------------+
-| db                |
-| PostgreSQL        |
+| notification      |
+| service consumer  |
 +-------------------+
           |
           v
@@ -445,7 +451,12 @@ Important environment variables:
 | `GITHUB_TOKEN` | Optional GitHub API token |
 | `GITHUB_API_URL` | GitHub API base URL |
 | `GITHUB_REQUEST_TIMEOUT_MS` | GitHub API request timeout |
-| `NOTIFICATION_REQUEST_TIMEOUT_MS` | Notification service request timeout |
+| `RABBITMQ_URL` | RabbitMQ connection string |
+| `NOTIFICATION_EXCHANGE` | Notification command exchange |
+| `NOTIFICATION_QUEUE` | Notification consumer queue |
+| `NOTIFICATION_RETRY_TTL_MS` | Delay before retrying failed commands |
+| `NOTIFICATION_MAX_ATTEMPTS` | Maximum command delivery attempts |
+| `BROKER_RECONNECT_DELAY_MS` | Delay before reconnecting to RabbitMQ |
 | `SCAN_INTERVAL_MS` | Release scanner interval |
 | `SMTP_HOST` | SMTP server host |
 | `SMTP_PORT` | SMTP server port |
@@ -468,11 +479,14 @@ A monolith is appropriate for the current scope because the system has one API, 
 
 ### ADR-003: Email Confirmation Required
 
-Email confirmation is required to prevent users from subscribing other people’s email addresses. This reduces spam and abuse and ensures notifications are sent only to verified email owners.
+Email confirmation is required to prevent users from subscribing other people's email addresses. This reduces spam and abuse and ensures notifications are sent only to verified email owners.
 
-### ADR-004: Modular Monolith with Notification Service
+### ADR-004: RabbitMQ for Notification Commands
 
-The architecture evolved from a single monolith into a modular monolith for core domain logic plus a separately deployed notification service for SMTP delivery. This keeps subscription and release tracking logic simple while isolating email delivery behind an HTTP service boundary.
+Notification delivery uses durable RabbitMQ commands with publisher confirms,
+manual acknowledgements, bounded TTL retries, a dead-letter queue, and
+PostgreSQL message-id idempotency. See
+`docs/adr/004-use-rabbitmq-for-notification-commands.md`.
 
 ---
 
@@ -482,9 +496,12 @@ The architecture evolved from a single monolith into a modular monolith for core
 |---|---|---|
 | GitHub repository validation fails | API returns GitHub-related error | Retry transient failures with backoff |
 | GitHub rate limit exceeded | API returns 429 / scanner logs error | Cache, token rotation, queue throttling |
-| Email sending fails during subscribe | Subscription may be created but email may fail | Store email job and retry asynchronously |
-| Some emails fail during scan | Scanner logs failed recipients and marks the release handled to prevent duplicate delivery to successful recipients | Queue notification jobs with per-recipient retry and dead-letter queue |
-| All emails fail during scan | Scanner leaves the release pending for the next scan | Queue notification jobs with retry and dead-letter queue |
+| RabbitMQ publishing fails | API returns `502`; scanner retries the publish before giving up | Add a transactional outbox |
+| SMTP delivery fails | Consumer retries through the TTL retry queue, then moves the command to the DLQ | Add SMTP failover and DLQ replay tooling |
+| Consumer receives a processed message ID | Consumer acknowledges it without sending another email | Periodically archive old idempotency records |
+| Consumer loses its RabbitMQ channel | Consumer reconnects and restores consumption | Add broker connectivity metrics |
+| Some emails fail to publish during scan | Scanner retries each failed publish, then marks the release handled to prevent duplicate delivery to successful recipients | Queue notification jobs with per-recipient retry and dead-letter queue |
+| All emails fail to publish during scan | Scanner leaves the release pending for the next scan | Queue notification jobs with retry and dead-letter queue |
 | SMTP is unavailable | Notification service readiness returns `503` and the app waits for a healthy notification service in Docker Compose | Add SMTP failover and delivery queue |
 | App restarts | API starts listening before the initial background scan begins | Separate scanner worker and distributed scheduler lock |
 | Multiple app instances | Each instance may start scanner | Use leader election or separate worker process |

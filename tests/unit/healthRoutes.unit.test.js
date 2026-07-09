@@ -1,7 +1,7 @@
 import express from 'express';
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
-import { createHealthRoutes } from '../../shared/health/index.js';
+import { createHealthRoutes } from '@notifier/shared/modules/health/index.js';
 
 function createApp(readinessCheck) {
   const app = express();

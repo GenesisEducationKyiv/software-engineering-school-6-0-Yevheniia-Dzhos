@@ -7,7 +7,7 @@ import {
     logger,
     recordReleaseScannerRepositoryFailure,
     recordReleaseScannerRun
-} from '../observability/index.js';
+} from '@notifier/shared/modules/observability/index.js';
 
 export async function scanForNewReleases() {
     const startedAt = process.hrtime.bigint();

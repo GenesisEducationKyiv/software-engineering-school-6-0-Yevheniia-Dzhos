@@ -21,39 +21,21 @@ describe('notification email templates', () => {
     process.env = originalEnv;
   });
 
-  it('renders subscription confirmation emails by template id', async () => {
-    const { renderEmailTemplate } = await importTemplates();
+  it('renders subscription confirmation emails', async () => {
+    const { confirmationEmailTemplate } = await importTemplates();
 
-    const result = renderEmailTemplate('subscription-confirmation', {
-      token: 'confirm-token',
-      repo: 'owner/repo'
-    });
+    const html = confirmationEmailTemplate('confirm-token', 'owner/repo');
 
-    expect(result.subject).toBe('Confirm subscription for owner/repo');
-    expect(result.html).toContain('http://app.example.test/api/confirm/confirm-token');
-    expect(result.html).toContain('owner/repo');
+    expect(html).toContain('http://app.example.test/api/confirm/confirm-token');
+    expect(html).toContain('owner/repo');
   });
 
-  it('renders release notification emails by template id', async () => {
-    const { renderEmailTemplate } = await importTemplates();
+  it('renders release notification emails', async () => {
+    const { releaseEmailTemplate } = await importTemplates();
 
-    const result = renderEmailTemplate('release-notification', {
-      repo: 'owner/repo',
-      tag: 'v1.0.0',
-      unsubscribeToken: 'unsubscribe-token'
-    });
+    const html = releaseEmailTemplate('owner/repo', 'v1.0.0', 'unsubscribe-token');
 
-    expect(result.subject).toBe('New release in owner/repo: v1.0.0');
-    expect(result.html).toContain('https://github.com/owner/repo/releases/tag/v1.0.0');
-    expect(result.html).toContain('http://app.example.test/api/unsubscribe/unsubscribe-token');
-  });
-
-  it('rejects unknown templates and missing template data', async () => {
-    const { renderEmailTemplate } = await importTemplates();
-
-    expect(() => renderEmailTemplate('missing-template', {}))
-      .toThrow('Unknown email template: missing-template');
-    expect(() => renderEmailTemplate('subscription-confirmation', { repo: 'owner/repo' }))
-      .toThrow('Template subscription-confirmation requires token');
+    expect(html).toContain('https://github.com/owner/repo/releases/tag/v1.0.0');
+    expect(html).toContain('http://app.example.test/api/unsubscribe/unsubscribe-token');
   });
 });

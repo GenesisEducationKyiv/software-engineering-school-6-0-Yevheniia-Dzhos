@@ -6,8 +6,9 @@ import {
   recordReleaseScannerRepositoryFailure,
   recordReleaseScannerRun,
   renderMetrics,
-  resetMetrics
-} from '../../shared/observability/metrics.js';
+  resetMetrics,
+  setNotificationMessagesInFlight
+} from '@notifier/shared/modules/observability/metrics.js';
 
 function createRequest(path, method = 'GET', routePath = path) {
   return {
@@ -105,6 +106,16 @@ describe('RED metrics', () => {
     expect(metrics).toContain('release_scanner_duration_seconds_sum{status="success"} 1.2');
     expect(metrics).toContain('release_notifications_sent_total 3');
     expect(metrics).toContain('release_scanner_repository_failures_total{repository="octocat/Hello-World"} 1');
+  });
+
+  it('renders the notification in-flight gauge and reflects updates', async () => {
+    setNotificationMessagesInFlight(2);
+
+    expect(await renderMetrics()).toContain('notification_messages_in_flight 2');
+
+    setNotificationMessagesInFlight(0);
+
+    expect(await renderMetrics()).toContain('notification_messages_in_flight 0');
   });
 
   it('keeps metrics from separate services isolated', async () => {

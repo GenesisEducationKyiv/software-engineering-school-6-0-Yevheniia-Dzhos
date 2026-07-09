@@ -5,7 +5,7 @@ import {
   getPortEnv,
   getPositiveIntegerEnv,
   getRequiredEnv
-} from '../../src/config/envParsers.js';
+} from '@notifier/shared/config/envParsers.js';
 
 const names = [
   'TEST_REQUIRED',

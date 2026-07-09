@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { logger } from '../../shared/observability/logger.js';
+import { logger } from '@notifier/shared/modules/observability/logger.js';
 
 const originalLogLevel = process.env.LOG_LEVEL;
 
