@@ -1,7 +1,7 @@
 import { Code, ConnectError, createClient } from '@connectrpc/connect';
 import { createGrpcTransport } from '@connectrpc/connect-node';
 import { NotificationService } from '../../generated/notification/v1/notification_pb.js';
-import { AppError } from '../../utils/errors.js';
+import { AppError } from '@notifier/shared/utils/errors.js';
 
 function createNotificationClient({ baseUrl, timeoutMs }) {
   if (!baseUrl) {

@@ -1,4 +1,4 @@
-import { AppError } from '../../utils/errors.js';
+import { AppError } from '@notifier/shared/utils/errors.js';
 
 export function createNotificationRestClient({
   baseUrl,

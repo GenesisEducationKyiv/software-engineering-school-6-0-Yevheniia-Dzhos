@@ -33,6 +33,7 @@ describe('subscription confirmation saga', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     sagaRepository.findActiveSagaBySubscriptionId.mockResolvedValue(null);
+    notifications.sendSubscriptionConfirmationGrpc.mockResolvedValue(undefined);
   });
 
   it('reuses an active saga for the same pending subscription', async () => {
