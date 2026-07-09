@@ -4,8 +4,8 @@ import {
   getPortEnv,
   getPositiveIntegerEnv,
   getRequiredEnv
-} from './envParsers.js';
-import { getMessagingEnv } from './messagingEnv.js';
+} from '@notifier/shared/config/envParsers.js';
+import { getMessagingEnv } from '@notifier/shared/config/messagingEnv.js';
 
 dotenv.config();
 

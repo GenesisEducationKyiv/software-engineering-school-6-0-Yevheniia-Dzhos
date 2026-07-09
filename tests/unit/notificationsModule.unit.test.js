@@ -4,10 +4,10 @@ const publish = vi.fn();
 const closePublisher = vi.fn();
 const closeBroker = vi.fn();
 
-vi.mock('../../src/modules/messaging/brokerClient.js', () => ({
+vi.mock('@notifier/shared/modules/messaging/brokerClient.js', () => ({
   createBrokerClient: vi.fn(() => ({ close: closeBroker }))
 }));
-vi.mock('../../src/modules/messaging/notificationPublisher.js', () => ({
+vi.mock('@notifier/shared/modules/messaging/notificationPublisher.js', () => ({
   createNotificationPublisher: vi.fn(() => ({
     publish,
     close: closePublisher

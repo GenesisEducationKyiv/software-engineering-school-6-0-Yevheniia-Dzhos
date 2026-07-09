@@ -10,17 +10,11 @@ const topology = {
   retryQueue: 'notifications.retry',
   deadLetterExchange: 'notifications.dead-letter',
   deadLetterQueue: 'notifications.dead-letter',
-  sagaReplyExchange: 'saga.replies',
-  sagaReplyQueue: 'saga.replies',
-  sagaReplyRetryExchange: 'saga.replies.retry',
-  sagaReplyRetryQueue: 'saga.replies.retry',
-  sagaReplyDeadLetterExchange: 'saga.replies.dead-letter',
-  sagaReplyDeadLetterQueue: 'saga.replies.dead-letter',
   retryTtlMs: 5000
 };
 
 const { createNotificationPublisher } = await import(
-  '../../src/modules/messaging/notificationPublisher.js'
+  '@notifier/shared/modules/messaging/notificationPublisher.js'
 );
 
 function createChannel() {

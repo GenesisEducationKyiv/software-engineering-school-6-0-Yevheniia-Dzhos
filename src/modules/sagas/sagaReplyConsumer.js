@@ -1,7 +1,7 @@
 import {
   assertNotificationTopology,
   sagaReplyEvents
-} from '../messaging/topology.js';
+} from '@notifier/shared/modules/messaging/topology.js';
 import {
   hasProcessedSagaReply,
   recordProcessedSagaReply

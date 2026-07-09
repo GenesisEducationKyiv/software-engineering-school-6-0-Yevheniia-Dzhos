@@ -7,7 +7,7 @@ vi.mock('amqplib', () => ({
   default: { connect }
 }));
 
-const { createBrokerClient } = await import('../../src/modules/messaging/brokerClient.js');
+const { createBrokerClient } = await import('@notifier/shared/modules/messaging/brokerClient.js');
 
 function createConnection() {
   const connection = new EventEmitter();

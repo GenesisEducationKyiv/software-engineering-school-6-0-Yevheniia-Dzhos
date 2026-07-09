@@ -1,7 +1,7 @@
 import { env } from '../../config/env.js';
-import { createBrokerClient } from '../messaging/brokerClient.js';
-import { getNotificationTopologyConfig } from '../messaging/topology.js';
-import { logger } from '../observability/index.js';
+import { createBrokerClient } from '@notifier/shared/modules/messaging/brokerClient.js';
+import { getNotificationTopologyConfig } from '@notifier/shared/modules/messaging/topology.js';
+import { logger } from '@notifier/shared/modules/observability/index.js';
 import { createSagaReplyConsumer } from './sagaReplyConsumer.js';
 import { recoverTimedOutSubscriptionConfirmationSagas } from './subscriptionConfirmationSaga.js';
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AppError } from '../../src/utils/errors.js';
+import { AppError } from '@notifier/shared/utils/errors.js';
 import {
   normalizeEmail,
   normalizeSubscriptionInput,

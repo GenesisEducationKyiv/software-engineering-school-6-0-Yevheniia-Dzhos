@@ -8,12 +8,20 @@ const transporter = nodemailer.createTransport({
     auth: env.smtpUser ? { user: env.smtpUser, pass: env.smtpPass } : undefined
 });
 
-export async function sendEmail({ to, subject, html }) {
+function formatMessageId(messageId) {
+    if (!messageId) return undefined;
+
+    const safeId = String(messageId).replace(/[^a-zA-Z0-9._-]/g, '-');
+    return `<${safeId}@github-release-notifier.local>`;
+}
+
+export async function sendEmail({ to, subject, html, messageId }) {
     await transporter.sendMail({
         from: env.mailFrom,
         to,
         subject,
-        html
+        html,
+        messageId: formatMessageId(messageId)
     });
 }
 

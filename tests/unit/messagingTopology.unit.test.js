@@ -3,7 +3,7 @@ import {
   assertNotificationTopology,
   notificationCommands,
   sagaReplyEvents
-} from '../../src/modules/messaging/topology.js';
+} from '@notifier/shared/modules/messaging/topology.js';
 
 function createChannel() {
   return {

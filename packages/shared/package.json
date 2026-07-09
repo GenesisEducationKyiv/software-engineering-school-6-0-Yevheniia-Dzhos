@@ -1,0 +1,11 @@
+{
+  "name": "@notifier/shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "amqplib": "^0.10.9",
+    "express": "^4.22.2",
+    "prom-client": "^15.1.3"
+  }
+}

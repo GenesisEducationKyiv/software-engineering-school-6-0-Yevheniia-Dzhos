@@ -39,13 +39,25 @@ Provides shared operational capabilities:
 - HTTP metrics
 - `/metrics` endpoint registration
 
-Public API: `src/modules/observability/index.js`
+Public API: `packages/shared/modules/observability/index.js`
 
 ### Messaging
 
 Provides the shared RabbitMQ connection, notification topology, and publisher.
+Lives in `packages/shared` since both the main app and the notification-service
+consume it.
 
-Public API: `src/modules/messaging`
+Public API: `packages/shared/modules/messaging`
+
+### Sagas
+
+Orchestrates the subscription-confirmation flow as a saga: creates the
+subscription and a saga record in one transaction, dispatches the
+confirmation-email command, and waits for a reply from the notification
+service. On failure or timeout it compensates by deleting the pending
+subscription.
+
+Public API: `src/modules/sagas/index.js`
 
 ## Extracted Microservice
 

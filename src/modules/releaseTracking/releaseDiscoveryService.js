@@ -1,6 +1,6 @@
 import { fetchLatestReleaseTag } from './githubService.js';
 import { processInChunks } from './processInChunks.js';
-import { logger } from '../observability/index.js';
+import { logger } from '@notifier/shared/modules/observability/index.js';
 
 export async function discoverNewReleases(repositories, chunkSize) {
   const results = await processInChunks(repositories, chunkSize, async (repository) => {

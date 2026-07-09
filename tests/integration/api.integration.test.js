@@ -131,11 +131,11 @@ describe('API integration endpoints', () => {
     const migrationModule = await import('../../src/db/migrate.js');
     const notificationsModule = await import('../../src/modules/notifications/index.js');
     const { createBrokerClient } = await import(
-      '../../src/modules/messaging/brokerClient.js'
+      '@notifier/shared/modules/messaging/brokerClient.js'
     );
     const {
       getNotificationTopologyConfig
-    } = await import('../../src/modules/messaging/topology.js');
+    } = await import('@notifier/shared/modules/messaging/topology.js');
     const { env } = await import('../../services/notification-service/src/config.js');
     const { createNotificationConsumer } = await import(
       '../../services/notification-service/src/consumer.js'

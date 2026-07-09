@@ -4,17 +4,36 @@ import {
   unsubscribe,
   listSubscriptions
 } from './subscriptionService.js';
+import {
+  normalizeSubscriptionInput,
+  validateSubscriptionInput
+} from './subscriptionInputService.js';
 
-export async function subscribe(req, res, next) {
-  try {
-    const result = await createSubscription(req.body || {});
-    res.status(200).json({
-      message: 'Subscription successful. Confirmation email sent.',
-      sagaId: result?.sagaId
-    });
-  } catch (error) {
-    next(error);
+export function createSubscriptionController({ trackRepository }) {
+  async function subscribe(req, res, next) {
+    try {
+      const input = normalizeSubscriptionInput(req.body || {});
+
+      validateSubscriptionInput(input);
+
+      const repository = await trackRepository(input.repo);
+
+      const result = await createSubscription(input, repository);
+      res.status(200).json({
+        message: 'Subscription successful. Confirmation email sent.',
+        sagaId: result?.sagaId
+      });
+    } catch (error) {
+      next(error);
+    }
   }
+
+  return {
+    subscribe,
+    confirm,
+    unsubscribeUser,
+    getSubscriptions
+  };
 }
 
 export async function confirm(req, res, next) {

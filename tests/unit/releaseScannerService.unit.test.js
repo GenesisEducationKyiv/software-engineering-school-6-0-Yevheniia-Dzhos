@@ -14,10 +14,13 @@ vi.mock('../../src/modules/releaseTracking/trackedRepositoryRepository.js', () =
 vi.mock('../../src/modules/subscriptions/index.js', () => ({
   listActiveSubscribersForRepository: vi.fn()
 }));
-vi.mock('../../src/modules/observability/index.js', () => ({
+vi.mock('@notifier/shared/modules/observability/index.js', () => ({
   logger: {
     error: vi.fn()
-  }
+  },
+  recordReleaseNotificationsSent: vi.fn(),
+  recordReleaseScannerRepositoryFailure: vi.fn(),
+  recordReleaseScannerRun: vi.fn()
 }));
 
 const githubService = await import('../../src/modules/releaseTracking/githubService.js');
@@ -26,7 +29,7 @@ const trackedRepositoryRepository = await import(
   '../../src/modules/releaseTracking/trackedRepositoryRepository.js'
 );
 const subscriptionsModule = await import('../../src/modules/subscriptions/index.js');
-const { logger } = await import('../../src/modules/observability/index.js');
+const { logger } = await import('@notifier/shared/modules/observability/index.js');
 const { scanForNewReleases } = await import(
   '../../src/modules/releaseTracking/releaseScannerService.js'
 );
@@ -99,6 +102,30 @@ describe('release scanner service', () => {
         email: 'b@example.com',
         error: expect.any(Error)
       })
+    );
+  });
+
+  it('retries a transient publish failure instead of losing the subscriber', async () => {
+    trackedRepositoryRepository.findRepositoriesWithActiveSubscriptions.mockResolvedValue([
+      { id: 1, full_name: 'owner/repo', last_seen_tag: 'v1.0.0' }
+    ]);
+    githubService.fetchLatestReleaseTag.mockResolvedValue('v1.1.0');
+    subscriptionsModule.listActiveSubscribersForRepository.mockResolvedValue([
+      { email: 'a@example.com', unsubscribe_token: 'unsubscribe-a' }
+    ]);
+    notificationsModule.sendReleaseNotification
+      .mockRejectedValueOnce(new Error('transient broker error'))
+      .mockResolvedValueOnce(undefined);
+
+    await scanForNewReleases();
+
+    expect(notificationsModule.sendReleaseNotification).toHaveBeenCalledTimes(2);
+    expect(trackedRepositoryRepository.recordDiscoveredRelease)
+      .toHaveBeenCalledWith(1, 'v1.1.0');
+    expect(trackedRepositoryRepository.updateLastSeenTag).toHaveBeenCalledWith(1, 'v1.1.0');
+    expect(logger.error).not.toHaveBeenCalledWith(
+      'Release notification delivery failed',
+      expect.anything()
     );
   });
 

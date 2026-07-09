@@ -4,8 +4,8 @@ import {
   getOptionalEnv,
   getPortEnv,
   getRequiredEnv
-} from '../../../src/config/envParsers.js';
-import { getMessagingEnv } from '../../../src/config/messagingEnv.js';
+} from '@notifier/shared/config/envParsers.js';
+import { getMessagingEnv } from '@notifier/shared/config/messagingEnv.js';
 
 dotenv.config();
 
@@ -24,3 +24,7 @@ export const env = {
     'GitHub Release Notifier <no-reply@example.com>'
   )
 };
+
+if (env.smtpUser && !env.smtpPass) {
+  throw new Error('SMTP_PASS is required when SMTP_USER is set');
+}

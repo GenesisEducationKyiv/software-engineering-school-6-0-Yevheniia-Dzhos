@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { env } from '../../config/env.js';
-import { AppError } from '../../utils/errors.js';
+import { AppError } from '@notifier/shared/utils/errors.js';
 import { getSaga, listSagas } from './sagaController.js';
 
 const router = Router();

@@ -496,10 +496,14 @@ PostgreSQL message-id idempotency. See
 |---|---|---|
 | GitHub repository validation fails | API returns GitHub-related error | Retry transient failures with backoff |
 | GitHub rate limit exceeded | API returns 429 / scanner logs error | Cache, token rotation, queue throttling |
-| RabbitMQ publishing fails | API returns `502`; scanner logs the failed command | Add a transactional outbox |
+| RabbitMQ publishing fails | API returns `502`; scanner retries the publish before giving up | Add a transactional outbox |
 | SMTP delivery fails | Consumer retries through the TTL retry queue, then moves the command to the DLQ | Add SMTP failover and DLQ replay tooling |
 | Consumer receives a processed message ID | Consumer acknowledges it without sending another email | Periodically archive old idempotency records |
 | Consumer loses its RabbitMQ channel | Consumer reconnects and restores consumption | Add broker connectivity metrics |
+| Some emails fail to publish during scan | Scanner retries each failed publish, then marks the release handled to prevent duplicate delivery to successful recipients | Queue notification jobs with per-recipient retry and dead-letter queue |
+| All emails fail to publish during scan | Scanner leaves the release pending for the next scan | Queue notification jobs with retry and dead-letter queue |
+| SMTP is unavailable | Notification service readiness returns `503` and the app waits for a healthy notification service in Docker Compose | Add SMTP failover and delivery queue |
+| Subscription confirmation saga times out or fails | Saga recovery job compensates by deleting the pending subscription | Add saga step retries before compensating |
 | App restarts | API starts listening before the initial background scan begins | Separate scanner worker and distributed scheduler lock |
 | Multiple app instances | Each instance may start scanner | Use leader election or separate worker process |
 

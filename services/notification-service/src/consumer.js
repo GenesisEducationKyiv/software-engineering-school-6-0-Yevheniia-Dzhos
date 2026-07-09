@@ -2,13 +2,15 @@ import {
   assertNotificationTopology,
   notificationCommands,
   sagaReplyEvents
-} from '../../../src/modules/messaging/topology.js';
+} from '@notifier/shared/modules/messaging/topology.js';
 import {
   sendReleaseNotification,
   sendSubscriptionConfirmation
 } from './notificationService.js';
 import {
+  deleteProcessedMessage,
   hasProcessedMessage,
+  markProcessedMessageSent,
   recordProcessedMessage
 } from './processedMessageRepository.js';
 
@@ -17,14 +19,29 @@ const handlers = {
     email,
     token,
     repo
-  }) => sendSubscriptionConfirmation(email, token, repo),
+  }, command) => sendSubscriptionConfirmation(email, token, repo, command.id),
   [notificationCommands.release]: ({
     email,
     repo,
     tag,
     unsubscribeToken
-  }) => sendReleaseNotification(email, repo, tag, unsubscribeToken)
+  }, command) => sendReleaseNotification(email, repo, tag, unsubscribeToken, command.id)
 };
+
+const payloadFields = {
+  [notificationCommands.subscriptionConfirmation]: ['email', 'token', 'repo'],
+  [notificationCommands.release]: ['email', 'repo', 'tag', 'unsubscribeToken']
+};
+
+function hasRequiredPayloadFields(type, payload) {
+  const fields = payloadFields[type];
+  return Boolean(
+    fields
+    && payload
+    && typeof payload === 'object'
+    && fields.every((field) => typeof payload[field] === 'string' && payload[field])
+  );
+}
 
 function createSagaReply(type, command, error) {
   return {
@@ -41,7 +58,8 @@ export function createNotificationConsumer({
   brokerClient,
   topology,
   reconnectDelayMs,
-  logger
+  logger,
+  setNotificationMessagesInFlight = () => { }
 }) {
   let channel;
   let consumerTag;
@@ -134,7 +152,11 @@ export function createNotificationConsumer({
 
     const handler = handlers[command.type];
 
-    if (!handler || !command.payload || command.id !== message.properties.messageId) {
+    if (
+      !handler
+      || !hasRequiredPayloadFields(command.type, command.payload)
+      || command.id !== message.properties.messageId
+    ) {
       await rejectInvalidCommand(
         message,
         deliveryChannel,
@@ -143,61 +165,63 @@ export function createNotificationConsumer({
       return;
     }
 
-    if (!(await hasProcessedMessage(command.id))) {
-      try {
-        await handler(command.payload);
-      } catch (error) {
-        logger.error('Notification command handling failed', {
-          messageId: message.properties.messageId,
-          type: message.properties.type,
-          attempt: getAttemptCount(message),
-          error
-        });
-
-        if (getAttemptCount(message) >= topology.maxAttempts) {
-          try {
-            await publishSagaReply(
-              command,
-              deliveryChannel,
-              sagaReplyEvents.subscriptionConfirmationFailed,
-              error
-            );
-          } catch (replyError) {
-            logger.error('Notification failure reply publishing failed', {
-              messageId: message.properties.messageId,
-              type: message.properties.type,
-              error: replyError
-            });
-            deliveryChannel.nack(message, false, false);
-            return;
-          }
-
-          try {
-            await moveToDeadLetter(message, deliveryChannel);
-          } catch (deadLetterError) {
-            logger.error('Notification command dead-lettering failed', {
-              messageId: message.properties.messageId,
-              type: message.properties.type,
-              error: deadLetterError
-            });
-            deliveryChannel.nack(message, false, false);
-          }
+    try {
+      if (!(await hasProcessedMessage(command.id))) {
+        const claimed = await recordProcessedMessage(command.id, command.type);
+        if (!claimed) {
+          deliveryChannel.ack(message);
           return;
         }
 
-        deliveryChannel.nack(message, false, false);
+        try {
+          await handler(command.payload, command);
+          await markProcessedMessageSent(command.id);
+        } catch (error) {
+          await deleteProcessedMessage(command.id);
+          throw error;
+        }
+      }
+    } catch (error) {
+      logger.error('Notification command handling failed', {
+        messageId: message.properties.messageId,
+        type: message.properties.type,
+        attempt: getAttemptCount(message),
+        error
+      });
+
+      if (getAttemptCount(message) >= topology.maxAttempts) {
+        try {
+          await publishSagaReply(
+            command,
+            deliveryChannel,
+            sagaReplyEvents.subscriptionConfirmationFailed,
+            error
+          );
+        } catch (replyError) {
+          logger.error('Notification failure reply publishing failed', {
+            messageId: message.properties.messageId,
+            type: message.properties.type,
+            error: replyError
+          });
+          deliveryChannel.nack(message, false, false);
+          return;
+        }
+
+        try {
+          await moveToDeadLetter(message, deliveryChannel);
+        } catch (deadLetterError) {
+          logger.error('Notification command dead-lettering failed', {
+            messageId: message.properties.messageId,
+            type: message.properties.type,
+            error: deadLetterError
+          });
+          deliveryChannel.nack(message, false, false);
+        }
         return;
       }
 
-      try {
-        await recordProcessedMessage(command.id, command.type);
-      } catch (error) {
-        logger.error('Processed notification message recording failed', {
-          messageId: message.properties.messageId,
-          type: message.properties.type,
-          error
-        });
-      }
+      deliveryChannel.nack(message, false, false);
+      return;
     }
 
     try {
@@ -217,12 +241,17 @@ export function createNotificationConsumer({
     }
   }
 
+  function reportInFlight() {
+    setNotificationMessagesInFlight(inFlight.size);
+  }
+
   function consumeMessage(message, deliveryChannel) {
     const task = handleMessage(message, deliveryChannel);
     inFlight.add(task);
+    reportInFlight();
     void task.then(
-      () => inFlight.delete(task),
-      () => inFlight.delete(task)
+      () => { inFlight.delete(task); reportInFlight(); },
+      () => { inFlight.delete(task); reportInFlight(); }
     );
     return task;
   }
@@ -275,10 +304,10 @@ export function createNotificationConsumer({
     const currentChannel = channel;
     const currentConsumerTag = consumerTag;
     if (currentChannel && currentConsumerTag) {
-      await currentChannel.cancel(currentConsumerTag);
+      await currentChannel.cancel(currentConsumerTag).catch(() => undefined);
     }
     await Promise.allSettled(inFlight);
-    if (currentChannel) await currentChannel.close();
+    if (currentChannel) await currentChannel.close().catch(() => undefined);
     channel = undefined;
     consumerTag = undefined;
   }

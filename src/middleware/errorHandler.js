@@ -1,8 +1,9 @@
-import { logger } from '../modules/observability/index.js';
+import { AppError } from '@notifier/shared/utils/errors.js';
+import { logger } from '@notifier/shared/modules/observability/index.js';
 
 export function errorHandler(err, req, res, _next) {
   const status = err.status || 500;
-  const message = err.message || 'Internal Server Error';
+  const message = err instanceof AppError ? err.message : 'Internal Server Error';
 
   const logLevel = status >= 500 ? 'error' : 'warn';
 

@@ -1,7 +1,6 @@
 import express from 'express';
 import request from 'supertest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { errorHandler } from '../../src/middleware/errorHandler.js';
 
 async function createTestApp({ sagaApiToken = '' } = {}) {
   vi.resetModules();
@@ -14,6 +13,7 @@ async function createTestApp({ sagaApiToken = '' } = {}) {
   }));
 
   const { default: sagaRoutes } = await import('../../src/modules/sagas/sagaRoutes.js');
+  const { errorHandler } = await import('../../src/middleware/errorHandler.js');
   const app = express();
   app.use('/api', sagaRoutes);
   app.use(errorHandler);

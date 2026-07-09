@@ -7,7 +7,9 @@ vi.mock('../../services/notification-service/src/notificationService.js', () => 
 }));
 vi.mock('../../services/notification-service/src/processedMessageRepository.js', () => ({
   hasProcessedMessage: vi.fn(),
-  recordProcessedMessage: vi.fn()
+  recordProcessedMessage: vi.fn(),
+  markProcessedMessageSent: vi.fn(),
+  deleteProcessedMessage: vi.fn()
 }));
 
 const notificationService = await import(
@@ -72,6 +74,8 @@ describe('notification consumer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     processedMessages.hasProcessedMessage.mockResolvedValue(false);
+    processedMessages.recordProcessedMessage.mockResolvedValue(true);
+    processedMessages.markProcessedMessageSent.mockResolvedValue(undefined);
   });
 
   it('consumes and acknowledges subscription confirmation commands', async () => {
@@ -95,9 +99,10 @@ describe('notification consumer', () => {
 
     expect(channel.prefetch).toHaveBeenCalledWith(1);
     expect(notificationService.sendSubscriptionConfirmation)
-      .toHaveBeenCalledWith('user@example.com', 'token-123', 'owner/repo');
+      .toHaveBeenCalledWith('user@example.com', 'token-123', 'owner/repo', 'message-1');
     expect(processedMessages.recordProcessedMessage)
       .toHaveBeenCalledWith('message-1', 'notification.subscription-confirmation.send');
+    expect(processedMessages.markProcessedMessageSent).toHaveBeenCalledWith('message-1');
     expect(channel.publish).toHaveBeenCalledWith(
       'saga.replies',
       'saga.subscription-confirmation.succeeded',
@@ -109,6 +114,41 @@ describe('notification consumer', () => {
     );
     expect(channel.ack).toHaveBeenCalledWith(message);
     expect(channel.nack).not.toHaveBeenCalled();
+  });
+
+  it('reports the in-flight message count via setNotificationMessagesInFlight', async () => {
+    let resolveDelivery;
+    notificationService.sendReleaseNotification.mockReturnValue(
+      new Promise((resolve) => {
+        resolveDelivery = resolve;
+      })
+    );
+    const channel = createChannel();
+    const setNotificationMessagesInFlight = vi.fn();
+    const consumer = createNotificationConsumer({
+      brokerClient: { createConfirmChannel: vi.fn().mockResolvedValue(channel) },
+      topology,
+      reconnectDelayMs: 1000,
+      logger: { error: vi.fn() },
+      setNotificationMessagesInFlight
+    });
+
+    await consumer.start();
+    const delivery = channel.consume.mock.calls[0][1](
+      createMessage('notification.release.send', {
+        email: 'user@example.com',
+        repo: 'owner/repo',
+        tag: 'v1.0.0',
+        unsubscribeToken: 'unsubscribe-token'
+      })
+    );
+
+    expect(setNotificationMessagesInFlight).toHaveBeenLastCalledWith(1);
+
+    resolveDelivery();
+    await delivery;
+
+    expect(setNotificationMessagesInFlight).toHaveBeenLastCalledWith(0);
   });
 
   it('rejects failed commands for retry', async () => {
@@ -143,6 +183,10 @@ describe('notification consumer', () => {
         error: expect.any(Error)
       })
     );
+    expect(processedMessages.recordProcessedMessage)
+      .toHaveBeenCalledWith('message-1', 'notification.release.send');
+    expect(processedMessages.markProcessedMessageSent).not.toHaveBeenCalled();
+    expect(processedMessages.deleteProcessedMessage).toHaveBeenCalledWith('message-1');
   });
 
   it('acknowledges already processed commands without sending another email', async () => {
@@ -156,9 +200,15 @@ describe('notification consumer', () => {
     });
 
     await consumer.start();
-    const message = createMessage('notification.release.send', {});
+    const message = createMessage('notification.release.send', {
+      email: 'user@example.com',
+      repo: 'owner/repo',
+      tag: 'v1.0.0',
+      unsubscribeToken: 'unsubscribe-token'
+    });
     await channel.consume.mock.calls[0][1](message);
 
+    expect(processedMessages.hasProcessedMessage).toHaveBeenCalledWith('message-1');
     expect(notificationService.sendReleaseNotification).not.toHaveBeenCalled();
     expect(processedMessages.recordProcessedMessage).not.toHaveBeenCalled();
     expect(channel.ack).toHaveBeenCalledWith(message);
@@ -203,9 +253,8 @@ describe('notification consumer', () => {
     expect(channel.nack).toHaveBeenCalledWith(message, false, false);
   });
 
-  it('publishes success reply when processed-message recording fails after email delivery', async () => {
-    processedMessages.recordProcessedMessage
-      .mockRejectedValue(new Error('Database unavailable'));
+  it('acknowledges commands that were claimed by another consumer', async () => {
+    processedMessages.recordProcessedMessage.mockResolvedValue(false);
     const channel = createChannel();
     const consumer = createNotificationConsumer({
       brokerClient: { createConfirmChannel: vi.fn().mockResolvedValue(channel) },
@@ -215,24 +264,15 @@ describe('notification consumer', () => {
     });
 
     await consumer.start();
-    const message = createMessage('notification.subscription-confirmation.send', {
+    const message = createMessage('notification.release.send', {
       email: 'user@example.com',
-      token: 'token-123',
       repo: 'owner/repo',
-      sagaId: 'saga-1'
+      tag: 'v1.0.0',
+      unsubscribeToken: 'unsubscribe-token'
     });
     await channel.consume.mock.calls[0][1](message);
 
-    expect(notificationService.sendSubscriptionConfirmation)
-      .toHaveBeenCalledWith('user@example.com', 'token-123', 'owner/repo');
-    expect(channel.publish).toHaveBeenCalledWith(
-      'saga.replies',
-      'saga.subscription-confirmation.succeeded',
-      expect.any(Buffer),
-      expect.objectContaining({
-        type: 'saga.subscription-confirmation.succeeded'
-      })
-    );
+    expect(notificationService.sendReleaseNotification).not.toHaveBeenCalled();
     expect(channel.ack).toHaveBeenCalledWith(message);
     expect(channel.nack).not.toHaveBeenCalled();
   });
@@ -332,6 +372,31 @@ describe('notification consumer', () => {
     expect(channel.ack).toHaveBeenCalledWith(message);
   });
 
+  it('moves commands with invalid payload shape directly to the dead-letter exchange', async () => {
+    const channel = createChannel();
+    const consumer = createNotificationConsumer({
+      brokerClient: { createConfirmChannel: vi.fn().mockResolvedValue(channel) },
+      topology,
+      reconnectDelayMs: 1000,
+      logger: { error: vi.fn() }
+    });
+
+    await consumer.start();
+    const message = createMessage('notification.release.send', { email: 'user@example.com' });
+    await channel.consume.mock.calls[0][1](message);
+
+    expect(notificationService.sendReleaseNotification).not.toHaveBeenCalled();
+    expect(processedMessages.recordProcessedMessage).not.toHaveBeenCalled();
+    expect(channel.publish).toHaveBeenCalledWith(
+      topology.deadLetterExchange,
+      'notification.release.send',
+      message.content,
+      message.properties
+    );
+    expect(channel.ack).toHaveBeenCalledWith(message);
+    expect(channel.nack).not.toHaveBeenCalled();
+  });
+
   it('moves malformed JSON directly to the dead-letter exchange', async () => {
     const channel = createChannel();
     const consumer = createNotificationConsumer({
@@ -426,5 +491,39 @@ describe('notification consumer', () => {
     await closing;
 
     expect(channel.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('still drains in-flight commands when the channel closes out from under close()', async () => {
+    let finishDelivery;
+    notificationService.sendReleaseNotification.mockReturnValue(
+      new Promise((resolve) => {
+        finishDelivery = resolve;
+      })
+    );
+    const channel = createChannel();
+    channel.cancel.mockRejectedValue(new Error('channel closed'));
+    channel.close.mockRejectedValue(new Error('channel closed'));
+    const consumer = createNotificationConsumer({
+      brokerClient: { createConfirmChannel: vi.fn().mockResolvedValue(channel) },
+      topology,
+      reconnectDelayMs: 1000,
+      logger: { error: vi.fn() }
+    });
+
+    await consumer.start();
+    const delivery = channel.consume.mock.calls[0][1](
+      createMessage('notification.release.send', {
+        email: 'user@example.com',
+        repo: 'owner/repo',
+        tag: 'v1.0.0',
+        unsubscribeToken: 'unsubscribe-token'
+      })
+    );
+    const closing = consumer.close();
+
+    finishDelivery();
+    await delivery;
+
+    await expect(closing).resolves.toBeUndefined();
   });
 });
