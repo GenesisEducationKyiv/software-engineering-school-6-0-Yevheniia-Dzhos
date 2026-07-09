@@ -39,13 +39,15 @@ Provides shared operational capabilities:
 - HTTP metrics
 - `/metrics` endpoint registration
 
-Public API: `src/modules/observability/index.js`
+Public API: `packages/shared/modules/observability/index.js`
 
 ### Messaging
 
 Provides the shared RabbitMQ connection, notification topology, and publisher.
+Lives in `packages/shared` since both the main app and the notification-service
+consume it.
 
-Public API: `src/modules/messaging`
+Public API: `packages/shared/modules/messaging`
 
 ## Extracted Microservice
 

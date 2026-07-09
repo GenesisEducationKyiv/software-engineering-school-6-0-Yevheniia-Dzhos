@@ -24,6 +24,7 @@ export function createObservability(serviceName) {
 
   return {
     logger,
+    setGauge: metrics.setGauge,
     registerObservability(app) {
       app.use(requestLogger);
       app.use(metricsMiddleware);

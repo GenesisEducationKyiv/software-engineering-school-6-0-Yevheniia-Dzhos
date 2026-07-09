@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   assertNotificationTopology,
   notificationCommands
-} from '../../src/modules/messaging/topology.js';
+} from '@notifier/shared/modules/messaging/topology.js';
 
 function createChannel() {
   return {

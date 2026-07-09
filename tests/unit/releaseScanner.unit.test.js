@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../src/modules/releaseTracking/releaseScannerService.js', () => ({
   scanForNewReleases: vi.fn()
 }));
-vi.mock('../../src/modules/observability/index.js', () => ({
+vi.mock('@notifier/shared/modules/observability/index.js', () => ({
   logger: {
     error: vi.fn(),
     warn: vi.fn()
@@ -11,7 +11,7 @@ vi.mock('../../src/modules/observability/index.js', () => ({
 }));
 
 const scannerService = await import('../../src/modules/releaseTracking/releaseScannerService.js');
-const { logger } = await import('../../src/modules/observability/index.js');
+const { logger } = await import('@notifier/shared/modules/observability/index.js');
 const {
   startReleaseScanner,
   stopReleaseScanner

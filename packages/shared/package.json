@@ -1,0 +1,9 @@
+{
+  "name": "@notifier/shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "amqplib": "^0.10.9"
+  }
+}

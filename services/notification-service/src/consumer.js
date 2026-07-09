@@ -1,7 +1,7 @@
 import {
   assertNotificationTopology,
   notificationCommands
-} from '../../../src/modules/messaging/topology.js';
+} from '@notifier/shared/modules/messaging/topology.js';
 import {
   sendReleaseNotification,
   sendSubscriptionConfirmation
@@ -9,6 +9,7 @@ import {
 import {
   deleteProcessedMessage,
   hasProcessedMessage,
+  markProcessedMessageSent,
   recordProcessedMessage
 } from './processedMessageRepository.js';
 
@@ -26,11 +27,27 @@ const handlers = {
   }, command) => sendReleaseNotification(email, repo, tag, unsubscribeToken, command.id)
 };
 
+const payloadFields = {
+  [notificationCommands.subscriptionConfirmation]: ['email', 'token', 'repo'],
+  [notificationCommands.release]: ['email', 'repo', 'tag', 'unsubscribeToken']
+};
+
+function hasRequiredPayloadFields(type, payload) {
+  const fields = payloadFields[type];
+  return Boolean(
+    fields
+    && payload
+    && typeof payload === 'object'
+    && fields.every((field) => typeof payload[field] === 'string' && payload[field])
+  );
+}
+
 export function createNotificationConsumer({
   brokerClient,
   topology,
   reconnectDelayMs,
-  logger
+  logger,
+  setGauge = () => { }
 }) {
   let channel;
   let consumerTag;
@@ -103,7 +120,11 @@ export function createNotificationConsumer({
 
     const handler = handlers[command.type];
 
-    if (!handler || !command.payload || command.id !== message.properties.messageId) {
+    if (
+      !handler
+      || !hasRequiredPayloadFields(command.type, command.payload)
+      || command.id !== message.properties.messageId
+    ) {
       await rejectInvalidCommand(
         message,
         deliveryChannel,
@@ -118,10 +139,6 @@ export function createNotificationConsumer({
         return;
       }
 
-      // Claim before sending: if the process crashes mid-send, the claim
-      // already exists so a redelivery won't send a duplicate email. If the
-      // handler fails with a normal error (not a crash), the claim is rolled
-      // back so the retry/dead-letter flow below can still process it.
       const claimed = await recordProcessedMessage(command.id, command.type);
       if (!claimed) {
         deliveryChannel.ack(message);
@@ -130,6 +147,7 @@ export function createNotificationConsumer({
 
       try {
         await handler(command.payload, command);
+        await markProcessedMessageSent(command.id);
       } catch (error) {
         await deleteProcessedMessage(command.id);
         throw error;
@@ -162,12 +180,22 @@ export function createNotificationConsumer({
     }
   }
 
+  function reportInFlight() {
+    setGauge(
+      'notification_messages_in_flight',
+      'Number of notification commands currently being processed.',
+      {},
+      inFlight.size
+    );
+  }
+
   function consumeMessage(message, deliveryChannel) {
     const task = handleMessage(message, deliveryChannel);
     inFlight.add(task);
+    reportInFlight();
     void task.then(
-      () => inFlight.delete(task),
-      () => inFlight.delete(task)
+      () => { inFlight.delete(task); reportInFlight(); },
+      () => { inFlight.delete(task); reportInFlight(); }
     );
     return task;
   }
@@ -220,10 +248,10 @@ export function createNotificationConsumer({
     const currentChannel = channel;
     const currentConsumerTag = consumerTag;
     if (currentChannel && currentConsumerTag) {
-      await currentChannel.cancel(currentConsumerTag);
+      await currentChannel.cancel(currentConsumerTag).catch(() => undefined);
     }
     await Promise.allSettled(inFlight);
-    if (currentChannel) await currentChannel.close();
+    if (currentChannel) await currentChannel.close().catch(() => undefined);
     channel = undefined;
     consumerTag = undefined;
   }

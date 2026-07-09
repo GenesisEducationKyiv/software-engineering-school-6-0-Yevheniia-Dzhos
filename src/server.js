@@ -6,11 +6,12 @@ import {
   stopReleaseScanner
 } from './modules/releaseTracking/releaseScanner.js';
 import { closeNotificationPublisher } from './modules/notifications/index.js';
-import { logger } from './modules/observability/index.js';
+import { logger } from '@notifier/shared/modules/observability/index.js';
 import {
+  closeAll,
   closeHttpServer,
   registerGracefulShutdown
-} from './utils/gracefulShutdown.js';
+} from '@notifier/shared/utils/gracefulShutdown.js';
 
 const app = createApp();
 
@@ -22,10 +23,10 @@ const server = app.listen(env.port, () => {
 registerGracefulShutdown({
   logger,
   serviceName: 'github-release-notifier',
-  close: async () => {
-    stopReleaseScanner();
-    await closeHttpServer(server);
-    await closeNotificationPublisher();
-    await pool.end();
-  }
+  close: () => closeAll([
+    ['release scanner', () => stopReleaseScanner()],
+    ['http server', () => closeHttpServer(server)],
+    ['notification publisher', () => closeNotificationPublisher()],
+    ['database pool', () => pool.end()]
+  ], logger)
 });

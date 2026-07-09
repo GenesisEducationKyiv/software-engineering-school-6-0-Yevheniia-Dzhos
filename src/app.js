@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import swaggerUi from 'swagger-ui-express';
 import { subscriptionRoutes } from './modules/subscriptions/index.js';
-import { registerObservability } from './modules/observability/index.js';
+import { registerObservability } from '@notifier/shared/modules/observability/index.js';
 import { healthRoutes } from './modules/health/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { loadSwaggerDocument } from './config/swagger.js';

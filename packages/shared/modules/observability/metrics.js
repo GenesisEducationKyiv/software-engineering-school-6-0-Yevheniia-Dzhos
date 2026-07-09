@@ -109,6 +109,7 @@ export function createMetrics() {
   const requestCounts = new Map();
   const errorCounts = new Map();
   const durationHistograms = new Map();
+  const gauges = new Map();
 
   function recordHttpRequest(req, res, durationSeconds) {
     if (req.path === '/metrics') return;
@@ -132,6 +133,27 @@ export function createMetrics() {
     }
   }
 
+  function setGauge(name, help, labels, value) {
+    let gauge = gauges.get(name);
+
+    if (!gauge) {
+      gauge = { help, series: new Map() };
+      gauges.set(name, gauge);
+    }
+
+    gauge.series.set(labelsKey(labels), { labels, value });
+  }
+
+  function gaugeLines() {
+    const lines = [];
+
+    for (const [name, gauge] of gauges.entries()) {
+      lines.push(...metricHelp(name, gauge.help, 'gauge'), ...counterLines(name, gauge.series), '');
+    }
+
+    return lines;
+  }
+
   function renderMetrics() {
     return [
       ...metricHelp('http_requests_total', 'Total HTTP requests processed by the application.', 'counter'),
@@ -142,7 +164,8 @@ export function createMetrics() {
       '',
       ...metricHelp('http_request_duration_seconds', 'HTTP request duration in seconds.', 'histogram'),
       ...histogramLines('http_request_duration_seconds', durationHistograms),
-      ''
+      '',
+      ...gaugeLines()
     ].join('\n');
   }
 
@@ -150,9 +173,10 @@ export function createMetrics() {
     requestCounts.clear();
     errorCounts.clear();
     durationHistograms.clear();
+    gauges.clear();
   }
 
-  return { recordHttpRequest, renderMetrics, resetMetrics };
+  return { recordHttpRequest, renderMetrics, resetMetrics, setGauge };
 }
 
-export const { recordHttpRequest, renderMetrics, resetMetrics } = createMetrics();
+export const { recordHttpRequest, renderMetrics, resetMetrics, setGauge } = createMetrics();

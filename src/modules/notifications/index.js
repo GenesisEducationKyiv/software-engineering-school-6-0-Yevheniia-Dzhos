@@ -1,11 +1,11 @@
 import { env } from '../../config/env.js';
-import { createBrokerClient } from '../messaging/brokerClient.js';
-import { createNotificationPublisher } from '../messaging/notificationPublisher.js';
+import { createBrokerClient } from '@notifier/shared/modules/messaging/brokerClient.js';
+import { createNotificationPublisher } from '@notifier/shared/modules/messaging/notificationPublisher.js';
 import {
   getNotificationTopologyConfig,
   notificationCommands
-} from '../messaging/topology.js';
-import { logger } from '../observability/index.js';
+} from '@notifier/shared/modules/messaging/topology.js';
+import { logger } from '@notifier/shared/modules/observability/index.js';
 
 const brokerClient = createBrokerClient({
   url: env.rabbitmqUrl,

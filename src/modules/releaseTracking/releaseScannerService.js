@@ -3,7 +3,7 @@ import { findRepositoriesWithActiveSubscriptions } from './trackedRepositoryRepo
 import { discoverNewReleases } from './releaseDiscoveryService.js';
 import { handleDiscoveredRelease } from './releaseHandlerService.js';
 import { processInChunks } from './processInChunks.js';
-import { logger } from '../observability/index.js';
+import { logger } from '@notifier/shared/modules/observability/index.js';
 
 export async function scanForNewReleases() {
     const repositories = await findRepositoriesWithActiveSubscriptions();

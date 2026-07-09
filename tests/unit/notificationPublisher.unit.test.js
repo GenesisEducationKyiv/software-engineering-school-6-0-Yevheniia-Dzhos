@@ -14,7 +14,7 @@ const topology = {
 };
 
 const { createNotificationPublisher } = await import(
-  '../../src/modules/messaging/notificationPublisher.js'
+  '@notifier/shared/modules/messaging/notificationPublisher.js'
 );
 
 function createChannel() {

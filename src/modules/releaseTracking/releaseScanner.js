@@ -1,5 +1,5 @@
 import { scanForNewReleases } from './releaseScannerService.js';
-import { logger } from '../observability/index.js';
+import { logger } from '@notifier/shared/modules/observability/index.js';
 
 let intervalId;
 let isRunning = false;

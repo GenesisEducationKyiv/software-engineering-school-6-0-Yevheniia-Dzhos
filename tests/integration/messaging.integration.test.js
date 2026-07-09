@@ -1,6 +1,6 @@
 import amqp from 'amqplib';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { assertNotificationTopology } from '../../src/modules/messaging/topology.js';
+import { assertNotificationTopology } from '@notifier/shared/modules/messaging/topology.js';
 
 let connection;
 let channel;

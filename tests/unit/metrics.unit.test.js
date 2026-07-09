@@ -3,8 +3,9 @@ import {
   createMetrics,
   recordHttpRequest,
   renderMetrics,
-  resetMetrics
-} from '../../src/modules/observability/metrics.js';
+  resetMetrics,
+  setGauge
+} from '@notifier/shared/modules/observability/metrics.js';
 
 function createRequest(path, method = 'GET', routePath = path) {
   return {
@@ -82,6 +83,17 @@ describe('RED metrics', () => {
     expect(metrics).toContain('# HELP http_requests_total');
     expect(metrics).toContain('# HELP http_request_errors_total');
     expect(metrics).toContain('# HELP http_request_duration_seconds');
+  });
+
+  it('renders gauge values and overwrites them on updates', () => {
+    setGauge('notification_messages_in_flight', 'Messages being processed.', {}, 2);
+
+    expect(renderMetrics()).toContain('# TYPE notification_messages_in_flight gauge');
+    expect(renderMetrics()).toContain('notification_messages_in_flight 2');
+
+    setGauge('notification_messages_in_flight', 'Messages being processed.', {}, 0);
+
+    expect(renderMetrics()).toContain('notification_messages_in_flight 0');
   });
 
   it('keeps metrics from separate services isolated', () => {

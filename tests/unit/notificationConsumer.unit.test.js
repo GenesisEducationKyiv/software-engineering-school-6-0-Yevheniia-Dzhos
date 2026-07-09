@@ -8,6 +8,7 @@ vi.mock('../../services/notification-service/src/notificationService.js', () => 
 vi.mock('../../services/notification-service/src/processedMessageRepository.js', () => ({
   hasProcessedMessage: vi.fn(),
   recordProcessedMessage: vi.fn(),
+  markProcessedMessageSent: vi.fn(),
   deleteProcessedMessage: vi.fn()
 }));
 
@@ -68,6 +69,7 @@ describe('notification consumer', () => {
     vi.clearAllMocks();
     processedMessages.hasProcessedMessage.mockResolvedValue(false);
     processedMessages.recordProcessedMessage.mockResolvedValue(true);
+    processedMessages.markProcessedMessageSent.mockResolvedValue(undefined);
   });
 
   it('consumes and acknowledges subscription confirmation commands', async () => {
@@ -93,8 +95,54 @@ describe('notification consumer', () => {
       .toHaveBeenCalledWith('user@example.com', 'token-123', 'owner/repo', 'message-1');
     expect(processedMessages.recordProcessedMessage)
       .toHaveBeenCalledWith('message-1', 'notification.subscription-confirmation.send');
+    expect(processedMessages.markProcessedMessageSent).toHaveBeenCalledWith('message-1');
     expect(channel.ack).toHaveBeenCalledWith(message);
     expect(channel.nack).not.toHaveBeenCalled();
+  });
+
+  it('reports the in-flight message count via setGauge', async () => {
+    let resolveDelivery;
+    notificationService.sendReleaseNotification.mockReturnValue(
+      new Promise((resolve) => {
+        resolveDelivery = resolve;
+      })
+    );
+    const channel = createChannel();
+    const setGauge = vi.fn();
+    const consumer = createNotificationConsumer({
+      brokerClient: { createConfirmChannel: vi.fn().mockResolvedValue(channel) },
+      topology,
+      reconnectDelayMs: 1000,
+      logger: { error: vi.fn() },
+      setGauge
+    });
+
+    await consumer.start();
+    const delivery = channel.consume.mock.calls[0][1](
+      createMessage('notification.release.send', {
+        email: 'user@example.com',
+        repo: 'owner/repo',
+        tag: 'v1.0.0',
+        unsubscribeToken: 'unsubscribe-token'
+      })
+    );
+
+    expect(setGauge).toHaveBeenLastCalledWith(
+      'notification_messages_in_flight',
+      expect.any(String),
+      {},
+      1
+    );
+
+    resolveDelivery();
+    await delivery;
+
+    expect(setGauge).toHaveBeenLastCalledWith(
+      'notification_messages_in_flight',
+      expect.any(String),
+      {},
+      0
+    );
   });
 
   it('rejects failed commands for retry', async () => {
@@ -131,6 +179,7 @@ describe('notification consumer', () => {
     );
     expect(processedMessages.recordProcessedMessage)
       .toHaveBeenCalledWith('message-1', 'notification.release.send');
+    expect(processedMessages.markProcessedMessageSent).not.toHaveBeenCalled();
     expect(processedMessages.deleteProcessedMessage).toHaveBeenCalledWith('message-1');
   });
 
@@ -145,9 +194,15 @@ describe('notification consumer', () => {
     });
 
     await consumer.start();
-    const message = createMessage('notification.release.send', {});
+    const message = createMessage('notification.release.send', {
+      email: 'user@example.com',
+      repo: 'owner/repo',
+      tag: 'v1.0.0',
+      unsubscribeToken: 'unsubscribe-token'
+    });
     await channel.consume.mock.calls[0][1](message);
 
+    expect(processedMessages.hasProcessedMessage).toHaveBeenCalledWith('message-1');
     expect(notificationService.sendReleaseNotification).not.toHaveBeenCalled();
     expect(processedMessages.recordProcessedMessage).not.toHaveBeenCalled();
     expect(channel.ack).toHaveBeenCalledWith(message);
@@ -228,6 +283,31 @@ describe('notification consumer', () => {
       message.properties
     );
     expect(channel.ack).toHaveBeenCalledWith(message);
+  });
+
+  it('moves commands with invalid payload shape directly to the dead-letter exchange', async () => {
+    const channel = createChannel();
+    const consumer = createNotificationConsumer({
+      brokerClient: { createConfirmChannel: vi.fn().mockResolvedValue(channel) },
+      topology,
+      reconnectDelayMs: 1000,
+      logger: { error: vi.fn() }
+    });
+
+    await consumer.start();
+    const message = createMessage('notification.release.send', { email: 'user@example.com' });
+    await channel.consume.mock.calls[0][1](message);
+
+    expect(notificationService.sendReleaseNotification).not.toHaveBeenCalled();
+    expect(processedMessages.recordProcessedMessage).not.toHaveBeenCalled();
+    expect(channel.publish).toHaveBeenCalledWith(
+      topology.deadLetterExchange,
+      'notification.release.send',
+      message.content,
+      message.properties
+    );
+    expect(channel.ack).toHaveBeenCalledWith(message);
+    expect(channel.nack).not.toHaveBeenCalled();
   });
 
   it('moves malformed JSON directly to the dead-letter exchange', async () => {
@@ -324,5 +404,39 @@ describe('notification consumer', () => {
     await closing;
 
     expect(channel.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('still drains in-flight commands when the channel closes out from under close()', async () => {
+    let finishDelivery;
+    notificationService.sendReleaseNotification.mockReturnValue(
+      new Promise((resolve) => {
+        finishDelivery = resolve;
+      })
+    );
+    const channel = createChannel();
+    channel.cancel.mockRejectedValue(new Error('channel closed'));
+    channel.close.mockRejectedValue(new Error('channel closed'));
+    const consumer = createNotificationConsumer({
+      brokerClient: { createConfirmChannel: vi.fn().mockResolvedValue(channel) },
+      topology,
+      reconnectDelayMs: 1000,
+      logger: { error: vi.fn() }
+    });
+
+    await consumer.start();
+    const delivery = channel.consume.mock.calls[0][1](
+      createMessage('notification.release.send', {
+        email: 'user@example.com',
+        repo: 'owner/repo',
+        tag: 'v1.0.0',
+        unsubscribeToken: 'unsubscribe-token'
+      })
+    );
+    const closing = consumer.close();
+
+    finishDelivery();
+    await delivery;
+
+    await expect(closing).resolves.toBeUndefined();
   });
 });
