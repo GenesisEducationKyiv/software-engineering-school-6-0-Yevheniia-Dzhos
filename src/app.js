@@ -22,8 +22,10 @@ export function createApp() {
   app.use(express.json());
   app.use(express.static(publicDirectory));
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-  app.use('/api', createSubscriptionRoutes({ trackRepository }));
-  app.use('/api', sagaRoutes);
+  const apiRouter = express.Router();
+  apiRouter.use(createSubscriptionRoutes({ trackRepository }));
+  apiRouter.use(sagaRoutes);
+  app.use('/api', apiRouter);
   app.use(healthRoutes);
   app.use(errorHandler);
 

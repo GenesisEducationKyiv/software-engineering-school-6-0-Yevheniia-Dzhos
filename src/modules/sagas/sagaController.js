@@ -1,8 +1,11 @@
 import { findSagaById, listRecentSagas } from './sagaRepository.js';
 import { AppError } from '@notifier/shared/utils/errors.js';
+import { sagaStates, subscriptionConfirmationSagaType } from './subscriptionConfirmationSaga.js';
 
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const maxSagaListLimit = 100;
+const allowedSagaStates = new Set(Object.values(sagaStates));
+const allowedSagaTypes = new Set([subscriptionConfirmationSagaType]);
 
 function parseNonNegativeInteger(value, fallback) {
   if (value === undefined) return fallback;
@@ -22,6 +25,14 @@ function getSagaListFilters(query) {
   );
   const offset = parseNonNegativeInteger(query.offset, 0);
 
+  if (query.state !== undefined && !allowedSagaStates.has(query.state)) {
+    throw new AppError(400, 'Invalid saga state');
+  }
+
+  if (query.type !== undefined && !allowedSagaTypes.has(query.type)) {
+    throw new AppError(400, 'Invalid saga type');
+  }
+
   return {
     limit,
     offset,
@@ -39,7 +50,8 @@ function sanitizeSaga(saga) {
 
   return {
     ...saga,
-    payload: safePayload
+    payload: safePayload,
+    error: saga.error ? 'Saga failed, check internal logs for details' : saga.error
   };
 }
 

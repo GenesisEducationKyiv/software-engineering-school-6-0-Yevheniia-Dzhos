@@ -3,7 +3,6 @@ import { sendSubscriptionConfirmation } from '../notifications/index.js';
 import { deletePendingSubscription } from '../subscriptions/subscriptionRepository.js';
 import {
   createSaga,
-  createSagaWithClient,
   findActiveSagaBySubscriptionId,
   findSagaById,
   listTimedOutSagas,
@@ -38,6 +37,11 @@ const activeStates = [
   sagaStates.compensating
 ];
 
+function isActiveSagaConflict(error) {
+  return error?.code === '23505'
+    && error?.constraint === 'idx_sagas_active_subscription_confirmation';
+}
+
 async function updateSagaStateOrReload(id, state, options) {
   const updated = await updateSagaState(id, state, options);
   return updated || findSagaById(id);
@@ -59,14 +63,29 @@ export async function startSubscriptionConfirmationSaga({
   if (activeSaga) return { sagaId: activeSaga.id };
 
   const sagaId = randomUUID();
-  const saga = await createSubscriptionConfirmationSaga({
-    sagaId,
-    email,
-    repo,
-    confirmToken,
-    subscriptionId,
-    shouldCompensateSubscription
-  });
+  let saga;
+
+  try {
+    saga = await createSubscriptionConfirmationSaga({
+      sagaId,
+      email,
+      repo,
+      confirmToken,
+      subscriptionId,
+      shouldCompensateSubscription
+    });
+  } catch (error) {
+    if (!isActiveSagaConflict(error)) throw error;
+
+    const concurrentSaga = await findActiveSagaBySubscriptionId({
+      type: subscriptionConfirmationSagaType,
+      subscriptionId,
+      states: activeStates
+    });
+    if (concurrentSaga) return { sagaId: concurrentSaga.id };
+
+    throw error;
+  }
 
   await dispatchSubscriptionConfirmationSaga(saga);
 
@@ -89,14 +108,12 @@ export async function createSubscriptionConfirmationSaga({
     subscriptionId,
     shouldCompensateSubscription
   };
-  const create = client ? createSagaWithClient.bind(null, client) : createSaga;
-
-  return create({
+  return createSaga({
     id: sagaId,
     type: subscriptionConfirmationSagaType,
     state: sagaStates.started,
     payload
-  });
+  }, client);
 }
 
 export async function dispatchSubscriptionConfirmationSaga(saga) {

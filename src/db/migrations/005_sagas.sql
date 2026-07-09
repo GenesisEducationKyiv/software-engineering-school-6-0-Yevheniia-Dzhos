@@ -15,6 +15,15 @@ ON sagas(type, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sagas_state
 ON sagas(state);
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sagas_active_subscription_confirmation
+ON sagas(type, (payload->>'subscriptionId'))
+WHERE type = 'subscription-confirmation'
+  AND state IN ('STARTED', 'NOTIFICATION_PENDING', 'COMPENSATING')
+  AND payload ? 'subscriptionId';
+
+CREATE INDEX IF NOT EXISTS idx_sagas_type_subscription_id
+ON sagas(type, (payload->>'subscriptionId'));
+
 CREATE TABLE IF NOT EXISTS processed_saga_replies (
   reply_id TEXT PRIMARY KEY,
   saga_id UUID NOT NULL REFERENCES sagas(id) ON DELETE CASCADE,

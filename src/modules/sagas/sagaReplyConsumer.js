@@ -2,6 +2,7 @@ import {
   assertNotificationTopology,
   sagaReplyEvents
 } from '@notifier/shared/modules/messaging/topology.js';
+import { createBrokerConsumerRuntime } from '@notifier/shared/modules/messaging/consumerRuntime.js';
 import {
   hasProcessedSagaReply,
   recordProcessedSagaReply
@@ -30,25 +31,6 @@ export function createSagaReplyConsumer({
   reconnectDelayMs,
   logger
 }) {
-  let channel;
-  let consumerTag;
-  let restartTimer;
-  let starting;
-  let closing = false;
-  const inFlight = new Set();
-
-  function scheduleRestart() {
-    if (closing || restartTimer) return;
-
-    restartTimer = setTimeout(() => {
-      restartTimer = undefined;
-      void start().catch((error) => {
-        logger.error('Saga reply consumer restart failed', { error });
-        scheduleRestart();
-      });
-    }, reconnectDelayMs);
-  }
-
   function getAttemptCount(message) {
     const death = message.properties.headers?.['x-death']?.find((entry) => {
       return entry.queue === topology.sagaReplyQueue;
@@ -101,12 +83,15 @@ export function createSagaReplyConsumer({
         return;
       }
 
-      await handler(reply);
-      await recordProcessedSagaReply({
-        replyId: reply.id,
-        sagaId: reply.sagaId,
-        replyType: reply.type
-      });
+      const handled = await handler(reply);
+
+      if (handled) {
+        await recordProcessedSagaReply({
+          replyId: reply.id,
+          sagaId: reply.sagaId,
+          replyType: reply.type
+        });
+      }
       deliveryChannel.ack(message);
     } catch (error) {
       logger.error('Saga reply handling failed', {
@@ -132,71 +117,14 @@ export function createSagaReplyConsumer({
     }
   }
 
-  function consumeMessage(message, deliveryChannel) {
-    const task = handleMessage(message, deliveryChannel);
-    inFlight.add(task);
-    void task.then(
-      () => inFlight.delete(task),
-      () => inFlight.delete(task)
-    );
-    return task;
-  }
-
-  async function start() {
-    if (channel) return;
-    if (starting) return starting;
-
-    starting = brokerClient.createConfirmChannel()
-      .then(async (nextChannel) => {
-        await assertNotificationTopology(nextChannel, topology);
-        await nextChannel.prefetch(1);
-        channel = nextChannel;
-        nextChannel.on('error', (error) => {
-          logger.error('Saga reply consumer channel error', { error });
-        });
-        nextChannel.on('close', () => {
-          channel = undefined;
-          consumerTag = undefined;
-          scheduleRestart();
-        });
-        const consumer = await nextChannel.consume(
-          topology.sagaReplyQueue,
-          (message) => consumeMessage(message, nextChannel),
-          { noAck: false }
-        );
-        consumerTag = consumer.consumerTag;
-      })
-      .catch(async (error) => {
-        const failedChannel = channel;
-        channel = undefined;
-        consumerTag = undefined;
-        if (failedChannel) await failedChannel.close().catch(() => undefined);
-        throw error;
-      })
-      .finally(() => {
-        starting = undefined;
-      });
-
-    return starting;
-  }
-
-  async function close() {
-    closing = true;
-    if (restartTimer) {
-      clearTimeout(restartTimer);
-      restartTimer = undefined;
-    }
-    if (starting) await starting.catch(() => undefined);
-    const currentChannel = channel;
-    const currentConsumerTag = consumerTag;
-    if (currentChannel && currentConsumerTag) {
-      await currentChannel.cancel(currentConsumerTag);
-    }
-    await Promise.allSettled(inFlight);
-    if (currentChannel) await currentChannel.close();
-    channel = undefined;
-    consumerTag = undefined;
-  }
-
-  return { start, close };
+  return createBrokerConsumerRuntime({
+    brokerClient,
+    topology,
+    queue: topology.sagaReplyQueue,
+    reconnectDelayMs,
+    logger,
+    name: 'Saga reply consumer',
+    assertTopology: assertNotificationTopology,
+    handleMessage
+  });
 }

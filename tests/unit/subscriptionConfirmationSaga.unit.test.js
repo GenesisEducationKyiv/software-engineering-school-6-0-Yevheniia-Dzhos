@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { AppError } from '@notifier/shared/utils/errors.js';
 
 vi.mock('../../src/modules/notifications/index.js', () => ({
   sendSubscriptionConfirmation: vi.fn()
@@ -8,7 +9,6 @@ vi.mock('../../src/modules/subscriptions/subscriptionRepository.js', () => ({
 }));
 vi.mock('../../src/modules/sagas/sagaRepository.js', () => ({
   createSaga: vi.fn(),
-  createSagaWithClient: vi.fn(),
   findActiveSagaBySubscriptionId: vi.fn(),
   findSagaById: vi.fn(),
   listTimedOutSagas: vi.fn(),
@@ -50,6 +50,32 @@ describe('subscription confirmation saga', () => {
     })).resolves.toEqual({ sagaId: 'existing-saga' });
 
     expect(sagaRepository.createSaga).not.toHaveBeenCalled();
+    expect(notifications.sendSubscriptionConfirmation).not.toHaveBeenCalled();
+  });
+
+  it('reuses a concurrently created active saga after database uniqueness conflict', async () => {
+    const conflict = Object.assign(new Error('duplicate active saga'), {
+      code: '23505',
+      constraint: 'idx_sagas_active_subscription_confirmation'
+    });
+    sagaRepository.findActiveSagaBySubscriptionId
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: 'concurrent-saga',
+        type: subscriptionConfirmationSagaType,
+        state: sagaStates.started,
+        payload: { subscriptionId: 10 }
+      });
+    sagaRepository.createSaga.mockRejectedValue(conflict);
+
+    await expect(startSubscriptionConfirmationSaga({
+      email: 'user@example.com',
+      repo: 'owner/repo',
+      confirmToken: 'confirm-token',
+      subscriptionId: 10
+    })).resolves.toEqual({ sagaId: 'concurrent-saga' });
+
+    expect(sagaRepository.findActiveSagaBySubscriptionId).toHaveBeenCalledTimes(2);
     expect(notifications.sendSubscriptionConfirmation).not.toHaveBeenCalled();
   });
 
@@ -103,6 +129,75 @@ describe('subscription confirmation saga', () => {
       .toHaveBeenCalledWith('user@example.com', 'confirm-token', 'owner/repo', {
         sagaId: createdSaga.id
       });
+  });
+
+  it('propagates the publisher failure status when dispatch cannot reach the broker', async () => {
+    sagaRepository.createSaga.mockImplementation(async (saga) => saga);
+    sagaRepository.updateSagaState
+      .mockImplementationOnce(async (id, state) => ({
+        id,
+        type: subscriptionConfirmationSagaType,
+        state,
+        payload: {
+          email: 'user@example.com',
+          repo: 'owner/repo',
+          confirmToken: 'confirm-token',
+          subscriptionId: 10,
+          shouldCompensateSubscription: true
+        }
+      }))
+      .mockResolvedValueOnce({
+        id: 'saga-1',
+        type: subscriptionConfirmationSagaType,
+        state: sagaStates.compensating,
+        payload: { subscriptionId: 10, shouldCompensateSubscription: true }
+      })
+      .mockResolvedValueOnce({
+        id: 'saga-1',
+        type: subscriptionConfirmationSagaType,
+        state: sagaStates.compensated,
+        payload: { subscriptionId: 10, shouldCompensateSubscription: true }
+      });
+    sagaRepository.findSagaById.mockResolvedValue({
+      id: 'saga-1',
+      type: subscriptionConfirmationSagaType,
+      state: sagaStates.notificationPending,
+      payload: { subscriptionId: 10, shouldCompensateSubscription: true }
+    });
+    notifications.sendSubscriptionConfirmation
+      .mockRejectedValue(new AppError(502, 'Notification service unavailable'));
+
+    await expect(startSubscriptionConfirmationSaga({
+      email: 'user@example.com',
+      repo: 'owner/repo',
+      confirmToken: 'confirm-token',
+      subscriptionId: 10,
+      shouldCompensateSubscription: true
+    })).rejects.toMatchObject({
+      status: 502,
+      message: 'Notification service unavailable'
+    });
+
+    const createdSaga = sagaRepository.createSaga.mock.calls[0][0];
+    expect(sagaRepository.updateSagaState).toHaveBeenNthCalledWith(
+      1,
+      createdSaga.id,
+      sagaStates.notificationPending,
+      { error: null, expectedState: sagaStates.started }
+    );
+    expect(sagaRepository.updateSagaState).toHaveBeenNthCalledWith(
+      2,
+      'saga-1',
+      sagaStates.compensating,
+      { error: 'Notification service unavailable', expectedState: sagaStates.notificationPending }
+    );
+    expect(sagaRepository.updateSagaState).toHaveBeenNthCalledWith(
+      3,
+      'saga-1',
+      sagaStates.compensated,
+      { error: 'Notification service unavailable', completed: true, expectedState: sagaStates.compensating }
+    );
+    expect(subscriptionRepository.deletePendingSubscription).toHaveBeenCalledWith(10);
   });
 
   it('marks saga as completed after successful notification reply', async () => {

@@ -49,13 +49,15 @@ describe('subscription service', () => {
       repo: 'owner/repo'
     }, trackedRepository);
 
+    const usedClient = subscriptionRepository.createSubscriptionRecord.mock.calls[0][4];
+    expect(usedClient).toBeDefined();
     expect(subscriptionRepository.createSubscriptionRecord)
       .toHaveBeenCalledWith(
         'user@example.com',
         7,
         'confirm-token-123',
         'unsubscribe-token-123',
-        expect.any(Object)
+        usedClient
       );
     expect(dbClient.withTransaction).toHaveBeenCalledTimes(1);
     expect(sagaModule.createSubscriptionConfirmationSaga)
@@ -65,7 +67,7 @@ describe('subscription service', () => {
         confirmToken: 'confirm-token-123',
         subscriptionId: 101,
         shouldCompensateSubscription: true,
-        client: expect.any(Object)
+        client: usedClient
       });
     expect(sagaModule.dispatchSubscriptionConfirmationSaga)
       .toHaveBeenCalledWith({ id: 'saga-1' });

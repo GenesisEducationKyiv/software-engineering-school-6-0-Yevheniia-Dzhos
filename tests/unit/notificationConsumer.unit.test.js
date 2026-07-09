@@ -253,6 +253,39 @@ describe('notification consumer', () => {
     expect(channel.nack).toHaveBeenCalledWith(message, false, false);
   });
 
+  it('dead-letters a delivered command once success reply publishing exhausts retries', async () => {
+    processedMessages.hasProcessedMessage.mockResolvedValue(true);
+    const channel = createChannel();
+    channel.waitForConfirms
+      .mockRejectedValueOnce(new Error('RabbitMQ unavailable'))
+      .mockResolvedValueOnce(undefined);
+    const consumer = createNotificationConsumer({
+      brokerClient: { createConfirmChannel: vi.fn().mockResolvedValue(channel) },
+      topology,
+      reconnectDelayMs: 1000,
+      logger: { error: vi.fn() }
+    });
+
+    await consumer.start();
+    const message = createMessage('notification.subscription-confirmation.send', {
+      email: 'user@example.com',
+      token: 'token-123',
+      repo: 'owner/repo',
+      sagaId: 'saga-1'
+    }, 'message-1', 3);
+    await channel.consume.mock.calls[0][1](message);
+
+    expect(notificationService.sendSubscriptionConfirmation).not.toHaveBeenCalled();
+    expect(channel.publish).toHaveBeenCalledWith(
+      topology.deadLetterExchange,
+      'notification.subscription-confirmation.send',
+      message.content,
+      message.properties
+    );
+    expect(channel.ack).toHaveBeenCalledWith(message);
+    expect(channel.nack).not.toHaveBeenCalled();
+  });
+
   it('acknowledges commands that were claimed by another consumer', async () => {
     processedMessages.recordProcessedMessage.mockResolvedValue(false);
     const channel = createChannel();

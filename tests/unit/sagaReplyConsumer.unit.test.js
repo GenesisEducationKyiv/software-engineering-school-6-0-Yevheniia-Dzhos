@@ -70,6 +70,10 @@ describe('saga reply consumer', () => {
   });
 
   it('consumes successful saga replies and acknowledges them', async () => {
+    saga.handleSubscriptionConfirmationSagaReply.mockResolvedValue({
+      id: 'saga-1',
+      state: 'COMPLETED'
+    });
     const channel = createChannel();
     const consumer = createSagaReplyConsumer({
       brokerClient: { createConfirmChannel: vi.fn().mockResolvedValue(channel) },
@@ -130,6 +134,44 @@ describe('saga reply consumer', () => {
         error: 'SMTP unavailable'
       });
     expect(channel.ack).toHaveBeenCalledTimes(1);
+  });
+
+  it('acknowledges orphan replies for an unknown saga without recording them', async () => {
+    saga.handleSubscriptionConfirmationSagaReply.mockResolvedValue(null);
+    const channel = createChannel();
+    const consumer = createSagaReplyConsumer({
+      brokerClient: { createConfirmChannel: vi.fn().mockResolvedValue(channel) },
+      topology,
+      reconnectDelayMs: 1000,
+      logger: { error: vi.fn() }
+    });
+
+    await consumer.start();
+    const message = createReply('saga.subscription-confirmation.succeeded', 'unknown-saga');
+    await channel.consume.mock.calls[0][1](message);
+
+    expect(sagaRepository.recordProcessedSagaReply).not.toHaveBeenCalled();
+    expect(channel.ack).toHaveBeenCalledWith(message);
+    expect(channel.nack).not.toHaveBeenCalled();
+  });
+
+  it('acknowledges replies with an unrecognized type', async () => {
+    const channel = createChannel();
+    const consumer = createSagaReplyConsumer({
+      brokerClient: { createConfirmChannel: vi.fn().mockResolvedValue(channel) },
+      topology,
+      reconnectDelayMs: 1000,
+      logger: { error: vi.fn() }
+    });
+
+    await consumer.start();
+    const message = createReply('saga.unknown.event');
+    await channel.consume.mock.calls[0][1](message);
+
+    expect(saga.handleSubscriptionConfirmationSagaReply).not.toHaveBeenCalled();
+    expect(sagaRepository.recordProcessedSagaReply).not.toHaveBeenCalled();
+    expect(channel.ack).toHaveBeenCalledWith(message);
+    expect(channel.nack).not.toHaveBeenCalled();
   });
 
   it('acknowledges malformed replies without requeueing them', async () => {

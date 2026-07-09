@@ -56,7 +56,10 @@ docker compose up --build
 - `GET /api/sagas`
 - `GET /api/sagas/{id}`
 
-Saga monitoring endpoints require `x-saga-api-token` when `SAGA_API_TOKEN` is configured.
+Saga monitoring endpoints require `x-saga-api-token` (or a `Bearer` token) matching `SAGA_API_TOKEN`.
+If `SAGA_API_TOKEN` is left unset, these endpoints accept requests with no authentication at all,
+so always set it outside local development. Running via `docker-compose.yml` enforces this: the
+`app` service refuses to start without `SAGA_API_TOKEN` set.
 
 ## Tests
 

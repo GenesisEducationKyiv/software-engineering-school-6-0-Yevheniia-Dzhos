@@ -6,19 +6,9 @@ function hasOwn(object, key) {
   return Object.prototype.hasOwnProperty.call(object, key);
 }
 
-export async function createSaga({ id, type, state, payload }) {
-  const result = await query(
-    `INSERT INTO sagas (id, type, state, payload)
-     VALUES ($1, $2, $3, $4)
-     RETURNING *`,
-    [id, type, state, payload]
-  );
-
-  return result.rows[0];
-}
-
-export async function createSagaWithClient(client, { id, type, state, payload }) {
-  const result = await client.query(
+export async function createSaga({ id, type, state, payload }, client) {
+  const executor = client || { query };
+  const result = await executor.query(
     `INSERT INTO sagas (id, type, state, payload)
      VALUES ($1, $2, $3, $4)
      RETURNING *`,
