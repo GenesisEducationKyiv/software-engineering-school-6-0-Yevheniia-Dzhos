@@ -2,7 +2,7 @@ import { createApp } from './app.js';
 import { env } from './config.js';
 import { createNotificationConsumer } from './consumer.js';
 import { pool } from './database.js';
-import { logger, setGauge } from './observability.js';
+import { logger, setNotificationMessagesInFlight } from './observability.js';
 import { createBrokerClient } from '@notifier/shared/modules/messaging/brokerClient.js';
 import { getNotificationTopologyConfig } from '@notifier/shared/modules/messaging/topology.js';
 import {
@@ -22,7 +22,7 @@ const consumer = createNotificationConsumer({
   topology: getNotificationTopologyConfig(env),
   reconnectDelayMs: env.brokerReconnectDelayMs,
   logger,
-  setGauge
+  setNotificationMessagesInFlight
 });
 
 const server = app.listen(env.port, () => {

@@ -5,7 +5,10 @@ import {
   updateLastSeenTag
 } from './trackedRepositoryRepository.js';
 import { processInChunks } from './processInChunks.js';
-import { logger } from '@notifier/shared/modules/observability/index.js';
+import {
+  logger,
+  recordReleaseNotificationsSent
+} from '@notifier/shared/modules/observability/index.js';
 
 const PUBLISH_RETRY_ATTEMPTS = 3;
 const PUBLISH_RETRY_DELAY_MS = 200;
@@ -14,6 +17,9 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// A failed publish never reaches the broker, so retrying carries no
+// duplicate-delivery risk (unlike retrying the whole scan on the next cycle,
+// which would resend to subscribers whose publish already succeeded).
 async function sendWithRetry(subscriber, repository, latestTag) {
   let lastError;
   for (let attempt = 1; attempt <= PUBLISH_RETRY_ATTEMPTS; attempt += 1) {
@@ -43,6 +49,7 @@ export async function handleDiscoveredRelease(discovery, chunkSize) {
   const failedDeliveries = deliveryResults
     .map((result, index) => ({ result, subscriber: subscribers[index] }))
     .filter(({ result }) => result.status === 'rejected');
+  const sentCount = deliveryResults.filter((result) => result.status === 'fulfilled').length;
 
   failedDeliveries.forEach(({ result, subscriber }) => {
     logger.error('Release notification delivery failed', {
@@ -57,6 +64,7 @@ export async function handleDiscoveredRelease(discovery, chunkSize) {
     throw failedDeliveries[0].result.reason;
   }
 
+  recordReleaseNotificationsSent(sentCount);
   await recordDiscoveredRelease(repository.id, latestTag);
   await updateLastSeenTag(repository.id, latestTag);
 }

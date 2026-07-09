@@ -21,6 +21,42 @@ function serializeError(error) {
   };
 }
 
+function isSensitiveKey(key) {
+  const normalizedKey = key.toLowerCase();
+
+  return (
+    normalizedKey.includes('token') ||
+    normalizedKey.includes('secret') ||
+    normalizedKey.includes('password') ||
+    normalizedKey.includes('passwd') ||
+    normalizedKey.includes('passphrase') ||
+    normalizedKey.includes('apikey') ||
+    normalizedKey.includes('api_key') ||
+    normalizedKey.includes('api-key') ||
+    normalizedKey.includes('authorization') ||
+    normalizedKey.includes('cookie') ||
+    normalizedKey === 'pass' ||
+    normalizedKey.endsWith('pass')
+  );
+}
+
+function sanitizeLogValue(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeLogValue(item));
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [
+        key,
+        isSensitiveKey(key) ? '[REDACTED]' : sanitizeLogValue(nestedValue)
+      ])
+    );
+  }
+
+  return value;
+}
+
 export function createLogger(service) {
   function writeLog(level, message, context = {}) {
     if (levels[level] < getMinimumLevel()) return;
@@ -31,7 +67,7 @@ export function createLogger(service) {
       level,
       service,
       message,
-      ...fields
+      ...sanitizeLogValue(fields)
     };
 
     if (error) {

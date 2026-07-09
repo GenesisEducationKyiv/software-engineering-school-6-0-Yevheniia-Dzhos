@@ -47,7 +47,7 @@ export function createNotificationConsumer({
   topology,
   reconnectDelayMs,
   logger,
-  setGauge = () => { }
+  setNotificationMessagesInFlight = () => { }
 }) {
   let channel;
   let consumerTag;
@@ -181,12 +181,7 @@ export function createNotificationConsumer({
   }
 
   function reportInFlight() {
-    setGauge(
-      'notification_messages_in_flight',
-      'Number of notification commands currently being processed.',
-      {},
-      inFlight.size
-    );
+    setNotificationMessagesInFlight(inFlight.size);
   }
 
   function consumeMessage(message, deliveryChannel) {

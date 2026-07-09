@@ -100,7 +100,7 @@ describe('notification consumer', () => {
     expect(channel.nack).not.toHaveBeenCalled();
   });
 
-  it('reports the in-flight message count via setGauge', async () => {
+  it('reports the in-flight message count via setNotificationMessagesInFlight', async () => {
     let resolveDelivery;
     notificationService.sendReleaseNotification.mockReturnValue(
       new Promise((resolve) => {
@@ -108,13 +108,13 @@ describe('notification consumer', () => {
       })
     );
     const channel = createChannel();
-    const setGauge = vi.fn();
+    const setNotificationMessagesInFlight = vi.fn();
     const consumer = createNotificationConsumer({
       brokerClient: { createConfirmChannel: vi.fn().mockResolvedValue(channel) },
       topology,
       reconnectDelayMs: 1000,
       logger: { error: vi.fn() },
-      setGauge
+      setNotificationMessagesInFlight
     });
 
     await consumer.start();
@@ -127,22 +127,12 @@ describe('notification consumer', () => {
       })
     );
 
-    expect(setGauge).toHaveBeenLastCalledWith(
-      'notification_messages_in_flight',
-      expect.any(String),
-      {},
-      1
-    );
+    expect(setNotificationMessagesInFlight).toHaveBeenLastCalledWith(1);
 
     resolveDelivery();
     await delivery;
 
-    expect(setGauge).toHaveBeenLastCalledWith(
-      'notification_messages_in_flight',
-      expect.any(String),
-      {},
-      0
-    );
+    expect(setNotificationMessagesInFlight).toHaveBeenLastCalledWith(0);
   });
 
   it('rejects failed commands for retry', async () => {

@@ -15,15 +15,26 @@ const { createApp } = await import('../../services/notification-service/src/app.
 describe('notification service app', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    emailClient.verifyEmailConnection.mockResolvedValue(undefined);
+    database.verifyDatabaseConnection.mockResolvedValue(undefined);
   });
 
-  it('reports readiness when SMTP is available', async () => {
+  it('reports readiness when SMTP and PostgreSQL are available', async () => {
     const response = await request(createApp()).get('/health/ready');
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ status: 'ready' });
     expect(emailClient.verifyEmailConnection).toHaveBeenCalledTimes(1);
     expect(database.verifyDatabaseConnection).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports liveness without checking SMTP or PostgreSQL', async () => {
+    const response = await request(createApp()).get('/health/live');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ status: 'ok' });
+    expect(emailClient.verifyEmailConnection).not.toHaveBeenCalled();
+    expect(database.verifyDatabaseConnection).not.toHaveBeenCalled();
   });
 
   it('reports not ready when SMTP is unavailable', async () => {
@@ -46,7 +57,7 @@ describe('notification service app', () => {
     expect(response.body).toEqual({ status: 'not ready' });
   });
 
-  it('exposes request IDs and RED metrics', async () => {
+  it('exposes request IDs and excludes probe endpoints from RED metrics', async () => {
     const app = createApp();
     const healthResponse = await request(app)
       .get('/health')
@@ -55,8 +66,7 @@ describe('notification service app', () => {
 
     expect(healthResponse.headers['x-request-id']).toBe('request-123');
     expect(metricsResponse.status).toBe(200);
-    expect(metricsResponse.text).toContain(
-      'http_requests_total{method="GET",route="/health",status_code="200",status_class="2xx"}'
-    );
+    expect(metricsResponse.text).toContain('# HELP http_requests_total');
+    expect(metricsResponse.text).not.toContain('route="/health"');
   });
 });

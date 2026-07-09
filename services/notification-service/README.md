@@ -7,6 +7,7 @@ that knows about SMTP, Nodemailer, and email templates.
 ## Endpoints
 
 - `GET /health`
+- `GET /health/live`
 - `GET /health/ready`
 - `GET /metrics`
 
