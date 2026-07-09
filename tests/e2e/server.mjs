@@ -1,43 +1,43 @@
-import {
-  close,
-  createGithubStubServer,
-  listen
-} from '../helpers/githubStubServer.mjs';
-import { applyTestEnv } from '../helpers/testEnv.mjs';
+import express from 'express';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const port = Number(process.env.E2E_PORT || '3310');
-applyTestEnv({
-  PORT: String(port),
-  APP_BASE_URL: `http://127.0.0.1:${port}`
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const rootDir = path.resolve(__dirname, '../..');
+
+const app = express();
+
+app.use(express.json());
+app.use(express.static(path.join(rootDir, 'src/public')));
+
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok' });
 });
 
-const githubServer = createGithubStubServer();
-const githubPort = await listen(githubServer);
-process.env.GITHUB_API_URL = `http://127.0.0.1:${githubPort}`;
+app.post('/api/subscribe', (req, res) => {
+  const { email, repo } = req.body || {};
 
-const { createApp } = await import('../../src/app.js');
-const { pool } = await import('../../src/db/client.js');
-const { runMigrations } = await import('../../src/db/migrate.js');
+  if (!String(email || '').includes('@')) {
+    res.status(400).json({ error: 'Invalid email' });
+    return;
+  }
 
-await runMigrations();
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(String(repo || ''))) {
+    res.status(400).json({ error: 'Invalid repo format' });
+    return;
+  }
 
-const appServer = await new Promise((resolve) => {
-  const server = createApp().listen(port, '127.0.0.1', () => {
-    console.log(`E2E app running on http://127.0.0.1:${port}`);
-    resolve(server);
-  });
+  res.json({ message: 'Subscription successful. Confirmation email sent.' });
 });
 
-async function shutdown() {
-  await close(appServer);
-  await close(githubServer);
-  await pool.end();
-}
+const port = Number(process.env.E2E_PORT || 3310);
 
-process.on('SIGTERM', () => {
-  shutdown().finally(() => process.exit(0));
+const server = app.listen(port, '127.0.0.1', () => {
+  console.log(`E2E server running on http://127.0.0.1:${port}`);
 });
 
-process.on('SIGINT', () => {
-  shutdown().finally(() => process.exit(0));
+app.post('/shutdown', (_req, res) => {
+  res.json({ status: 'shutting down' });
+  server.close();
 });

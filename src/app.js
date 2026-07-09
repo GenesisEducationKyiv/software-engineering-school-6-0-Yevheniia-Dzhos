@@ -1,37 +1,28 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'node:path';
-import swaggerUi from 'swagger-ui-express';
 import { fileURLToPath } from 'node:url';
-import subscriptionRoutes from './routes/subscriptionRoutes.js';
+import swaggerUi from 'swagger-ui-express';
+import { createSubscriptionRoutes } from './modules/subscriptions/index.js';
+import { trackRepository } from './modules/releaseTracking/index.js';
+import { registerObservability } from './modules/observability/index.js';
+import { healthRoutes } from './modules/health/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
-import { metricsMiddleware } from './middleware/metricsMiddleware.js';
-import { requestLogger } from './middleware/requestLogger.js';
 import { loadSwaggerDocument } from './config/swagger.js';
-import { getMetricsContentType, renderMetrics } from './utils/metrics.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const publicDirectory = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public');
 
 export function createApp() {
   const app = express();
   const swaggerDocument = loadSwaggerDocument();
 
   app.use(cors());
-  app.use(requestLogger);
-  app.use(metricsMiddleware);
+  registerObservability(app);
   app.use(express.json());
-  app.use(express.static(path.join(__dirname, 'public')));
+  app.use(express.static(publicDirectory));
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-  app.use('/api', subscriptionRoutes);
-  app.get('/health', (req, res) => res.json({ status: 'ok' }));
-  app.get('/metrics', async (_req, res, next) => {
-    try {
-      res.type(getMetricsContentType()).send(await renderMetrics());
-    } catch (error) {
-      next(error);
-    }
-  });
+  app.use('/api', createSubscriptionRoutes({ trackRepository }));
+  app.use(healthRoutes);
   app.use(errorHandler);
 
   return app;

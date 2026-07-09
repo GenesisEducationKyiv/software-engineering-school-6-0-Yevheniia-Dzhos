@@ -4,11 +4,6 @@
 
 Accepted
 
-## Participants
-
-- Project author
-- Course reviewers
-
 ## Context
 
 The project stores GitHub repository subscriptions, confirmation tokens, and release metadata.
@@ -19,8 +14,7 @@ The system requires:
 - relational data structure
 - transactional consistency
 
-Alternatives considered:
-- MySQL
+Alternative considered:
 - MongoDB
 
 ## Decision
@@ -36,11 +30,7 @@ PostgreSQL provides:
 - unique constraints for subscriptions
 - mature ecosystem and tooling
 
-The main architectural choice was between a relational SQL database and a document-oriented NoSQL database. The subscription model is structured and relational, so a SQL database fits naturally: subscriptions reference repositories, unique constraints prevent duplicates, and confirmation/unsubscribe tokens need consistent lookup and state updates.
-
-MongoDB was considered as a document database alternative, but it is less suitable here because the data model relies on relationships, uniqueness constraints, and transactional updates.
-
-Among SQL databases, both PostgreSQL and MySQL would be reasonable choices for this project. PostgreSQL was selected because it is open-source, mature, widely used, well supported by the Node.js ecosystem, and already fits the implemented schema, migrations, constraints, and indexing needs.
+The subscription model is structured and relational, so a SQL database fits naturally.
 
 ## Consequences
 

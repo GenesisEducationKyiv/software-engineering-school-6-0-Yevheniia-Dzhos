@@ -1,14 +1,14 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { pool } from './client.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export async function runMigrations() {
-  const migrationsDir = path.join(__dirname, 'migrations');
-  const migrationFiles = (await fs.readdir(migrationsDir))
+  const migrationsDirectory = path.join(__dirname, 'migrations');
+  const migrationFiles = (await fs.readdir(migrationsDirectory))
     .filter((file) => file.endsWith('.sql'))
     .sort();
 
@@ -29,7 +29,7 @@ export async function runMigrations() {
       continue;
     }
 
-    const migrationPath = path.join(migrationsDir, migrationFile);
+    const migrationPath = path.join(migrationsDirectory, migrationFile);
     const sql = await fs.readFile(migrationPath, 'utf8');
     const client = await pool.connect();
 

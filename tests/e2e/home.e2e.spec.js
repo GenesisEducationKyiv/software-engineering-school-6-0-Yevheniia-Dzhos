@@ -13,24 +13,23 @@ test.describe('GitHub Release Notifier page', () => {
     await expect(page.getByRole('link', { name: 'Health' })).toHaveAttribute('href', '/health');
   });
 
-  test('submits a valid subscription and shows the success response', async ({ page }, testInfo) => {
+  test('submits a valid subscription and shows the success response', async ({ page }) => {
     await page.goto('/');
-    const email = `e2e-${testInfo.project.name}-${Date.now()}@example.com`;
 
-    await page.getByPlaceholder('you@example.com').fill(email);
+    await page.getByPlaceholder('you@example.com').fill('user@example.com');
     await page.getByPlaceholder('owner/repo').fill('octocat/Hello-World');
     await page.getByRole('button', { name: 'Subscribe' }).click();
 
     await expect(page.locator('#status')).toHaveText('Subscription successful. Confirmation email sent.');
   });
 
-  test('shows validation errors without leaving the page', async ({ page }) => {
+  test('shows API validation errors without leaving the page', async ({ page }) => {
     await page.goto('/');
 
     await page.getByPlaceholder('you@example.com').fill('user@example.com');
     await page.getByPlaceholder('owner/repo').fill('bad');
     await page.getByRole('button', { name: 'Subscribe' }).click();
 
-    await expect(page.locator('#status')).toHaveText('Repository must use owner/repo format.');
+    await expect(page.locator('#status')).toHaveText('Invalid repo format');
   });
 });

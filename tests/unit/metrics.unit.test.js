@@ -1,12 +1,13 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import {
+  createMetrics,
   recordHttpRequest,
   recordReleaseNotificationsSent,
   recordReleaseScannerRepositoryFailure,
   recordReleaseScannerRun,
   renderMetrics,
   resetMetrics
-} from '../../src/utils/metrics.js';
+} from '../../shared/observability/metrics.js';
 
 function createRequest(path, method = 'GET', routePath = path) {
   return {
@@ -104,5 +105,15 @@ describe('RED metrics', () => {
     expect(metrics).toContain('release_scanner_duration_seconds_sum{status="success"} 1.2');
     expect(metrics).toContain('release_notifications_sent_total 3');
     expect(metrics).toContain('release_scanner_repository_failures_total{repository="octocat/Hello-World"} 1');
+  });
+
+  it('keeps metrics from separate services isolated', async () => {
+    const firstService = createMetrics();
+    const secondService = createMetrics();
+
+    firstService.recordHttpRequest(createRequest('/api/subscriptions'), createResponse(200), 0.01);
+
+    expect(await firstService.renderMetrics()).toContain('route="/api/subscriptions"');
+    expect(await secondService.renderMetrics()).not.toContain('route="/api/subscriptions"');
   });
 });

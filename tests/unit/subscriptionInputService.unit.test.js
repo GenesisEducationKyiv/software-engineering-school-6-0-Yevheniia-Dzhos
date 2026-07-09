@@ -6,7 +6,8 @@ import {
   validateEmail,
   validateSubscriptionInput,
   validateToken
-} from '../../src/services/subscriptionInputService.js';
+} from '../../src/modules/subscriptions/subscriptionInputService.js';
+import { isValidEmail, isValidRepo, isValidToken } from '../../src/utils/validators.js';
 
 describe('subscription input validation', () => {
   it('normalizes subscription payloads before validation', () => {
@@ -17,6 +18,12 @@ describe('subscription input validation', () => {
       email: 'user@example.com',
       repo: 'owner/repo'
     });
+  });
+
+  it('accepts valid email, repository and token values', () => {
+    expect(isValidEmail('user@example.com')).toBe(true);
+    expect(isValidRepo('owner.name/repo-name_1')).toBe(true);
+    expect(isValidToken('1234567890')).toBe(true);
   });
 
   it('rejects invalid subscribe payloads with AppError', () => {
