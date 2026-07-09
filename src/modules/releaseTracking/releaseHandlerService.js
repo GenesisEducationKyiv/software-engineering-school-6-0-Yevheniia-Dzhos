@@ -17,9 +17,6 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// A failed publish never reaches the broker, so retrying carries no
-// duplicate-delivery risk (unlike retrying the whole scan on the next cycle,
-// which would resend to subscribers whose publish already succeeded).
 async function sendWithRetry(subscriber, repository, latestTag) {
   let lastError;
   for (let attempt = 1; attempt <= PUBLISH_RETRY_ATTEMPTS; attempt += 1) {

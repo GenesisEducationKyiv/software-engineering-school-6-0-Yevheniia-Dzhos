@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import swaggerUi from 'swagger-ui-express';
 import { createSubscriptionRoutes } from './modules/subscriptions/index.js';
 import { trackRepository } from './modules/releaseTracking/index.js';
+import { sagaRoutes } from './modules/sagas/index.js';
 import { registerObservability } from '@notifier/shared/modules/observability/index.js';
 import { healthRoutes } from './modules/health/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -21,7 +22,10 @@ export function createApp() {
   app.use(express.json());
   app.use(express.static(publicDirectory));
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-  app.use('/api', createSubscriptionRoutes({ trackRepository }));
+  const apiRouter = express.Router();
+  apiRouter.use(createSubscriptionRoutes({ trackRepository }));
+  apiRouter.use(sagaRoutes);
+  app.use('/api', apiRouter);
   app.use(healthRoutes);
   app.use(errorHandler);
 

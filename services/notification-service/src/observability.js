@@ -4,4 +4,3 @@ export const {
   registerObservability,
   setNotificationMessagesInFlight
 } = createObservability('notification-service');
-

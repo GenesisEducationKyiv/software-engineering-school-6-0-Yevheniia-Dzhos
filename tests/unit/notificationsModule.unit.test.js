@@ -38,6 +38,25 @@ describe('notifications module', () => {
     );
   });
 
+  it('includes saga id in subscription confirmation commands when provided', async () => {
+    await notifications.sendSubscriptionConfirmation(
+      'user@example.com',
+      'token-123',
+      'owner/repo',
+      { sagaId: 'saga-1' }
+    );
+
+    expect(publish).toHaveBeenCalledWith(
+      'notification.subscription-confirmation.send',
+      {
+        email: 'user@example.com',
+        token: 'token-123',
+        repo: 'owner/repo',
+        sagaId: 'saga-1'
+      }
+    );
+  });
+
   it('publishes release commands', async () => {
     await notifications.sendReleaseNotification(
       'user@example.com',

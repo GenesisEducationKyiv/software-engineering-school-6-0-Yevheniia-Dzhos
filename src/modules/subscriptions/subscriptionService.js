@@ -1,4 +1,5 @@
 import { AppError } from '@notifier/shared/utils/errors.js';
+import { withTransaction } from '../../db/client.js';
 import {
   normalizeSubscriptionInput,
   validateSubscriptionInput,
@@ -7,7 +8,11 @@ import {
   validateToken
 } from './subscriptionInputService.js';
 import { createSubscriptionTokens } from './subscriptionTokenService.js';
-import { sendSubscriptionConfirmation } from '../notifications/index.js';
+import {
+  createSubscriptionConfirmationSaga,
+  dispatchSubscriptionConfirmationSaga,
+  startSubscriptionConfirmationSaga
+} from '../sagas/subscriptionConfirmationSaga.js';
 import {
   findActiveSubscription,
   createSubscriptionRecord,
@@ -33,8 +38,12 @@ export async function createSubscription(input, repository) {
 
   if (existing) {
     if (!existing.confirmed) {
-      await sendSubscriptionConfirmation(email, existing.confirm_token, repo);
-      return;
+      return startSubscriptionConfirmationSaga({
+        email,
+        repo,
+        confirmToken: existing.confirm_token,
+        subscriptionId: existing.id
+      });
     }
 
     throw new AppError(409, 'Email already subscribed to this repository');
@@ -42,14 +51,28 @@ export async function createSubscription(input, repository) {
 
   const { confirmToken, unsubscribeToken } = createSubscriptionTokens();
 
-  await createSubscriptionRecord(
-    email,
-    repository.id,
-    confirmToken,
-    unsubscribeToken
-  );
+  const saga = await withTransaction(async (client) => {
+    const subscription = await createSubscriptionRecord(
+      email,
+      repository.id,
+      confirmToken,
+      unsubscribeToken,
+      client
+    );
 
-  await sendSubscriptionConfirmation(email, confirmToken, repo);
+    return createSubscriptionConfirmationSaga({
+      email,
+      repo,
+      confirmToken,
+      subscriptionId: subscription.id,
+      shouldCompensateSubscription: true,
+      client
+    });
+  });
+
+  await dispatchSubscriptionConfirmationSaga(saga);
+
+  return { sagaId: saga.id };
 }
 
 export async function confirmSubscription(token) {

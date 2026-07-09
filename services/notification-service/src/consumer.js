@@ -1,7 +1,9 @@
 import {
   assertNotificationTopology,
-  notificationCommands
+  notificationCommands,
+  sagaReplyEvents
 } from '@notifier/shared/modules/messaging/topology.js';
+import { createBrokerConsumerRuntime } from '@notifier/shared/modules/messaging/consumerRuntime.js';
 import {
   sendReleaseNotification,
   sendSubscriptionConfirmation
@@ -42,6 +44,17 @@ function hasRequiredPayloadFields(type, payload) {
   );
 }
 
+function createSagaReply(type, command, error) {
+  return {
+    id: `${command.id}:${type}`,
+    type,
+    sagaId: command.payload.sagaId,
+    commandId: command.id,
+    occurredAt: new Date().toISOString(),
+    error: error?.message
+  };
+}
+
 export function createNotificationConsumer({
   brokerClient,
   topology,
@@ -49,25 +62,6 @@ export function createNotificationConsumer({
   logger,
   setNotificationMessagesInFlight = () => { }
 }) {
-  let channel;
-  let consumerTag;
-  let restartTimer;
-  let starting;
-  let closing = false;
-  const inFlight = new Set();
-
-  function scheduleRestart() {
-    if (closing || restartTimer) return;
-
-    restartTimer = setTimeout(() => {
-      restartTimer = undefined;
-      void start().catch((error) => {
-        logger.error('Notification consumer restart failed', { error });
-        scheduleRestart();
-      });
-    }, reconnectDelayMs);
-  }
-
   function getAttemptCount(message) {
     const death = message.properties.headers?.['x-death']?.find((entry) => {
       return entry.queue === topology.queue;
@@ -85,6 +79,26 @@ export function createNotificationConsumer({
     );
     await deliveryChannel.waitForConfirms();
     deliveryChannel.ack(message);
+  }
+
+  async function publishSagaReply(command, deliveryChannel, type, error) {
+    if (command.type !== notificationCommands.subscriptionConfirmation) return;
+    if (!command.payload?.sagaId) return;
+
+    const reply = createSagaReply(type, command, error);
+    deliveryChannel.publish(
+      topology.sagaReplyExchange,
+      type,
+      Buffer.from(JSON.stringify(reply)),
+      {
+        contentType: 'application/json',
+        persistent: true,
+        messageId: reply.id,
+        type,
+        timestamp: Date.now()
+      }
+    );
+    await deliveryChannel.waitForConfirms();
   }
 
   async function rejectInvalidCommand(message, deliveryChannel, error) {
@@ -134,28 +148,73 @@ export function createNotificationConsumer({
     }
 
     try {
-      if (await hasProcessedMessage(command.id)) {
-        deliveryChannel.ack(message);
-        return;
-      }
+      if (!(await hasProcessedMessage(command.id))) {
+        const claimed = await recordProcessedMessage(command.id, command.type);
+        if (!claimed) {
+          deliveryChannel.ack(message);
+          return;
+        }
 
-      const claimed = await recordProcessedMessage(command.id, command.type);
-      if (!claimed) {
-        deliveryChannel.ack(message);
-        return;
+        try {
+          await handler(command.payload, command);
+          await markProcessedMessageSent(command.id);
+        } catch (error) {
+          await deleteProcessedMessage(command.id);
+          throw error;
+        }
       }
-
-      try {
-        await handler(command.payload, command);
-        await markProcessedMessageSent(command.id);
-      } catch (error) {
-        await deleteProcessedMessage(command.id);
-        throw error;
-      }
-
-      deliveryChannel.ack(message);
     } catch (error) {
       logger.error('Notification command handling failed', {
+        messageId: message.properties.messageId,
+        type: message.properties.type,
+        attempt: getAttemptCount(message),
+        error
+      });
+
+      if (getAttemptCount(message) >= topology.maxAttempts) {
+        try {
+          await publishSagaReply(
+            command,
+            deliveryChannel,
+            sagaReplyEvents.subscriptionConfirmationFailed,
+            error
+          );
+        } catch (replyError) {
+          logger.error('Notification failure reply publishing failed', {
+            messageId: message.properties.messageId,
+            type: message.properties.type,
+            error: replyError
+          });
+          deliveryChannel.nack(message, false, false);
+          return;
+        }
+
+        try {
+          await moveToDeadLetter(message, deliveryChannel);
+        } catch (deadLetterError) {
+          logger.error('Notification command dead-lettering failed', {
+            messageId: message.properties.messageId,
+            type: message.properties.type,
+            error: deadLetterError
+          });
+          deliveryChannel.nack(message, false, false);
+        }
+        return;
+      }
+
+      deliveryChannel.nack(message, false, false);
+      return;
+    }
+
+    try {
+      await publishSagaReply(
+        command,
+        deliveryChannel,
+        sagaReplyEvents.subscriptionConfirmationSucceeded
+      );
+      deliveryChannel.ack(message);
+    } catch (error) {
+      logger.error('Notification success reply publishing failed', {
         messageId: message.properties.messageId,
         type: message.properties.type,
         attempt: getAttemptCount(message),
@@ -171,7 +230,7 @@ export function createNotificationConsumer({
             type: message.properties.type,
             error: deadLetterError
           });
-          deliveryChannel.nack(message, false, true);
+          deliveryChannel.nack(message, false, false);
         }
         return;
       }
@@ -180,76 +239,15 @@ export function createNotificationConsumer({
     }
   }
 
-  function reportInFlight() {
-    setNotificationMessagesInFlight(inFlight.size);
-  }
-
-  function consumeMessage(message, deliveryChannel) {
-    const task = handleMessage(message, deliveryChannel);
-    inFlight.add(task);
-    reportInFlight();
-    void task.then(
-      () => { inFlight.delete(task); reportInFlight(); },
-      () => { inFlight.delete(task); reportInFlight(); }
-    );
-    return task;
-  }
-
-  async function start() {
-    if (channel) return;
-    if (starting) return starting;
-
-    starting = brokerClient.createConfirmChannel()
-      .then(async (nextChannel) => {
-        await assertNotificationTopology(nextChannel, topology);
-        await nextChannel.prefetch(1);
-        channel = nextChannel;
-        nextChannel.on('error', (error) => {
-          logger.error('Notification consumer channel error', { error });
-        });
-        nextChannel.on('close', () => {
-          channel = undefined;
-          consumerTag = undefined;
-          scheduleRestart();
-        });
-        const consumer = await nextChannel.consume(
-          topology.queue,
-          (message) => consumeMessage(message, nextChannel),
-          { noAck: false }
-        );
-        consumerTag = consumer.consumerTag;
-      })
-      .catch(async (error) => {
-        const failedChannel = channel;
-        channel = undefined;
-        consumerTag = undefined;
-        if (failedChannel) await failedChannel.close().catch(() => undefined);
-        throw error;
-      })
-      .finally(() => {
-        starting = undefined;
-      });
-
-    return starting;
-  }
-
-  async function close() {
-    closing = true;
-    if (restartTimer) {
-      clearTimeout(restartTimer);
-      restartTimer = undefined;
-    }
-    if (starting) await starting.catch(() => undefined);
-    const currentChannel = channel;
-    const currentConsumerTag = consumerTag;
-    if (currentChannel && currentConsumerTag) {
-      await currentChannel.cancel(currentConsumerTag).catch(() => undefined);
-    }
-    await Promise.allSettled(inFlight);
-    if (currentChannel) await currentChannel.close().catch(() => undefined);
-    channel = undefined;
-    consumerTag = undefined;
-  }
-
-  return { start, close };
+  return createBrokerConsumerRuntime({
+    brokerClient,
+    topology,
+    queue: topology.queue,
+    reconnectDelayMs,
+    logger,
+    name: 'Notification consumer',
+    assertTopology: assertNotificationTopology,
+    handleMessage,
+    onInFlightChange: setNotificationMessagesInFlight
+  });
 }

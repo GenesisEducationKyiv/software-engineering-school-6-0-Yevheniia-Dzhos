@@ -16,6 +16,7 @@ let notificationConsumer;
 let notificationBrokerClient;
 let notificationPool;
 let closeNotificationPublisher;
+let closeSagaReplyConsumer;
 
 function createGithubStub() {
   return http.createServer((req, res) => {
@@ -106,6 +107,18 @@ async function waitForProcessedMessage(timeoutMs = 5000) {
   throw new Error('Timed out waiting for processed message record');
 }
 
+async function waitForSagaState(state, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const result = await query('SELECT state FROM sagas ORDER BY created_at DESC LIMIT 1');
+    if (result.rows[0]?.state === state) return result.rows[0];
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  throw new Error(`Timed out waiting for saga state ${state}`);
+}
+
 describe('API integration endpoints', () => {
   beforeAll(async () => {
     githubServer = createGithubStub();
@@ -113,6 +126,7 @@ describe('API integration endpoints', () => {
     process.env.GITHUB_API_URL = `http://127.0.0.1:${githubPort}`;
 
     const appModule = await import('../../src/app.js');
+    const sagaModule = await import('../../src/modules/sagas/index.js');
     const dbModule = await import('../../src/db/client.js');
     const migrationModule = await import('../../src/db/migrate.js');
     const notificationsModule = await import('../../src/modules/notifications/index.js');
@@ -137,6 +151,7 @@ describe('API integration endpoints', () => {
     pool = dbModule.pool;
     query = dbModule.query;
     closeNotificationPublisher = notificationsModule.closeNotificationPublisher;
+    closeSagaReplyConsumer = sagaModule.closeSagaReplyConsumer;
     notificationPool = notificationDatabase.pool;
 
     await migrationModule.runMigrations();
@@ -152,16 +167,18 @@ describe('API integration endpoints', () => {
       logger
     });
     await notificationConsumer.start();
+    await sagaModule.startSagaReplyConsumer();
   });
 
   beforeEach(async () => {
     await query(
-      'TRUNCATE processed_messages, subscriptions, repositories RESTART IDENTITY CASCADE'
+      'TRUNCATE sagas, processed_messages, subscriptions, repositories RESTART IDENTITY CASCADE'
     );
     await clearEmails();
   });
 
   afterAll(async () => {
+    await closeSagaReplyConsumer?.();
     await closeNotificationPublisher?.();
     await notificationConsumer?.close();
     await notificationBrokerClient?.close();
@@ -224,6 +241,9 @@ describe('API integration endpoints', () => {
     await expect(waitForProcessedMessage()).resolves.toMatchObject({
       message_id: expect.any(String),
       message_type: 'notification.subscription-confirmation.send'
+    });
+    await expect(waitForSagaState('COMPLETED')).resolves.toMatchObject({
+      state: 'COMPLETED'
     });
   });
 

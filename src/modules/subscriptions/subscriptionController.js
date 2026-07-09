@@ -18,8 +18,11 @@ export function createSubscriptionController({ trackRepository }) {
 
       const repository = await trackRepository(input.repo);
 
-      await createSubscription(input, repository);
-      res.status(200).json({ message: 'Subscription successful. Confirmation email sent.' });
+      const result = await createSubscription(input, repository);
+      res.status(200).json({
+        message: 'Subscription successful. Confirmation email sent.',
+        sagaId: result?.sagaId
+      });
     } catch (error) {
       next(error);
     }

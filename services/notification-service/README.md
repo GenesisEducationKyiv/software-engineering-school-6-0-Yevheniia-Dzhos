@@ -31,6 +31,12 @@ The topic routing key `notification.*.send` keeps the queue reusable for the
 current email commands. If notification command types grow, they can be split
 into separate handlers or queues without changing the rest of the system.
 
+If a `notification.subscription-confirmation.send` command carries a `sagaId`,
+the consumer publishes a `saga.subscription-confirmation.succeeded` or
+`saga.subscription-confirmation.failed` reply to the saga reply exchange after
+handling it, so the main application's orchestrated saga can complete or
+compensate the subscription.
+
 The readiness endpoint verifies SMTP and PostgreSQL. The consumer restores its
 subscription after RabbitMQ channel loss. SIGTERM and SIGINT stop the HTTP
 server, consumer, broker connection, and database pool.

@@ -18,12 +18,16 @@ const publisher = createNotificationPublisher({
   logger
 });
 
-export async function sendSubscriptionConfirmation(email, token, repo) {
-  await publisher.publish(notificationCommands.subscriptionConfirmation, {
+export async function sendSubscriptionConfirmation(email, token, repo, metadata = {}) {
+  const payload = {
     email,
     token,
     repo
-  });
+  };
+
+  if (metadata.sagaId) payload.sagaId = metadata.sagaId;
+
+  await publisher.publish(notificationCommands.subscriptionConfirmation, payload);
 }
 
 export async function sendReleaseNotification(email, repo, tag, unsubscribeToken) {

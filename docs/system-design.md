@@ -503,6 +503,7 @@ PostgreSQL message-id idempotency. See
 | Some emails fail to publish during scan | Scanner retries each failed publish, then marks the release handled to prevent duplicate delivery to successful recipients | Queue notification jobs with per-recipient retry and dead-letter queue |
 | All emails fail to publish during scan | Scanner leaves the release pending for the next scan | Queue notification jobs with retry and dead-letter queue |
 | SMTP is unavailable | Notification service readiness returns `503` and the app waits for a healthy notification service in Docker Compose | Add SMTP failover and delivery queue |
+| Subscription confirmation saga times out or fails | Saga recovery job compensates by deleting the pending subscription | Add saga step retries before compensating |
 | App restarts | API starts listening before the initial background scan begins | Separate scanner worker and distributed scheduler lock |
 | Multiple app instances | Each instance may start scanner | Use leader election or separate worker process |
 

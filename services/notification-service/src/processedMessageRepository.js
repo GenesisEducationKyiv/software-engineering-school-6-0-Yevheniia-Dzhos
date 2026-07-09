@@ -1,4 +1,5 @@
 import { query } from './database.js';
+
 const STALE_CLAIM_MS = 5 * 60 * 1000;
 
 export async function hasProcessedMessage(messageId) {

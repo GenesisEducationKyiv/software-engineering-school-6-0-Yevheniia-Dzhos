@@ -49,6 +49,16 @@ consume it.
 
 Public API: `packages/shared/modules/messaging`
 
+### Sagas
+
+Orchestrates the subscription-confirmation flow as a saga: creates the
+subscription and a saga record in one transaction, dispatches the
+confirmation-email command, and waits for a reply from the notification
+service. On failure or timeout it compensates by deleting the pending
+subscription.
+
+Public API: `src/modules/sagas/index.js`
+
 ## Extracted Microservice
 
 ### Notification Service
