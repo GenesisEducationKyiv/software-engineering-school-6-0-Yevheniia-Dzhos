@@ -1,17 +1,10 @@
 import { createServer } from 'node:http2';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { connectNodeAdapter } from '@connectrpc/connect-node';
-import { NotificationService } from '../../../src/generated/notification/v1/notification_pb.js';
-import { isValidEmail, isValidRepo, isValidToken } from '../../../src/utils/validators.js';
+import { NotificationService } from '@notifier/shared/contracts/notification.js';
+import { validateSubscriptionConfirmationRequest } from '@notifier/shared/utils/validators.js';
 import { sendSubscriptionConfirmation } from './notificationService.js';
-
-function validateSubscriptionConfirmationRequest(request) {
-  if (!isValidEmail(request.email)) return 'Invalid or missing field: email';
-  if (!isValidToken(request.token)) return 'Invalid or missing field: token';
-  if (!isValidRepo(request.repo)) return 'Invalid or missing field: repo';
-
-  return null;
-}
+import { logger } from './observability.js';
 
 export function createNotificationGrpcHandlers({
   notificationService = { sendSubscriptionConfirmation }
@@ -31,7 +24,8 @@ export function createNotificationGrpcHandlers({
           request.repo.trim()
         );
         return { status: 'sent' };
-      } catch {
+      } catch (error) {
+        logger.error('Notification gRPC email delivery failed', { error });
         throw new ConnectError('Email delivery failed', Code.Unavailable);
       }
     }

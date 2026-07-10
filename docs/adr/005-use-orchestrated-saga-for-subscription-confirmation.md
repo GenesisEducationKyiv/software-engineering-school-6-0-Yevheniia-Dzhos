@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted, amended by HW9 gRPC notification delivery
 
 ## Context
 
@@ -31,19 +31,15 @@ Alternatives considered:
 Use an orchestrated Saga for the subscription confirmation flow.
 
 The main application acts as the Saga orchestrator. It stores Saga state in the
-`sagas` table and publishes the `notification.subscription-confirmation.send`
-command through RabbitMQ with a `sagaId`.
+`sagas` table and calls the notification service synchronously through
+`NotificationService.SendSubscriptionConfirmation` over gRPC.
 
-The notification service acts as a Saga participant. After processing the
-command, it publishes one of these reply events:
-
-- `saga.subscription-confirmation.succeeded`
-- `saga.subscription-confirmation.failed`
-
-The main application consumes replies from the durable `saga.replies` queue and
-updates the Saga state. Saga replies have their own retry queue and dead-letter
-queue, so temporary database or orchestrator failures do not create a tight
-redelivery loop.
+The original RabbitMQ command/reply path (the `notification.subscription-confirmation.send`
+command and the `saga.replies` topology) is still provisioned at startup, but
+nothing in the codebase publishes to it anymore. Subscription confirmation
+always goes through the synchronous gRPC call now, and the Saga completes in
+the same request path after it succeeds. The reply consumer is idle for this
+flow, not a live fallback.
 
 - `STARTED`
 - `NOTIFICATION_PENDING`
@@ -52,9 +48,10 @@ redelivery loop.
 - `COMPENSATED`
 - `FAILED`
 
-If a newly created pending subscription cannot receive its confirmation email,
-the orchestrator compensates the local subscription step by deleting that
-pending subscription.
+If a newly created pending subscription definitely cannot receive its
+confirmation email, the orchestrator compensates the local subscription step by
+deleting that pending subscription. If the gRPC call times out, delivery is
+treated as uncertain and the pending subscription is kept.
 
 The orchestrator also runs a periodic recovery job for Sagas that remain in
 `NOTIFICATION_PENDING` or `COMPENSATING` longer than the configured timeout.
@@ -90,7 +87,9 @@ demonstrate.
 - Saga progress is persisted in PostgreSQL and can be inspected.
 - The notification service stays focused on email delivery.
 - Failed email delivery can trigger an explicit compensation step.
-- Duplicate Saga replies are safe because reply IDs are stored in
+- The active subscription-confirmation path is easier to reason about because
+  the gRPC result is handled in the same request path.
+- Legacy duplicate Saga replies are safe because reply IDs are stored in
   `processed_saga_replies` and Saga state transitions use compare-and-swap
   checks.
 - RabbitMQ retries and dead-letter queues continue to handle transient failures.
@@ -99,7 +98,10 @@ demonstrate.
 
 ### Negative
 
-- The main application now depends on RabbitMQ for the Saga reply consumer.
+- The main application still provisions the RabbitMQ Saga reply consumer and
+  topology even though nothing publishes to it anymore for this flow. It is
+  unused rather than merely legacy, and is a candidate for removal unless a
+  future Saga reuses the async reply pattern.
 - The system is eventually consistent, not atomically consistent.
 - The orchestrator contains workflow knowledge and must evolve when the flow
   gains more steps.

@@ -25,12 +25,15 @@ Subscription confirmation email delivery uses gRPC:
 2. The Saga orchestrator calls `NotificationService.SendSubscriptionConfirmation`.
 3. The notification service validates the request and sends the email.
 4. The orchestrator marks the Saga as `COMPLETED` after a successful gRPC response.
-5. If gRPC returns an error, the orchestrator compensates the pending subscription.
+5. If gRPC returns a confirmed delivery error, the orchestrator compensates the
+   pending subscription. If the gRPC request times out, the subscription stays
+   pending because email delivery may have already happened.
 
 The previous REST implementation remains available at
-`POST /api/notifications/subscription-confirmation` for comparison. Release
-notifications still use RabbitMQ commands because they are asynchronous
-background work.
+`POST /api/notifications/subscription-confirmation` for comparison. The
+`restClient.js` client is used only as a benchmark/reference baseline, not by
+the production confirmation flow. Release notifications still use RabbitMQ
+commands because they are asynchronous background work.
 
 The implementation uses `@connectrpc/connect-node` with the gRPC transport over
 HTTP/2. It keeps the protobuf contract and gRPC status model while fitting the
@@ -79,6 +82,13 @@ docker compose up --build
 - Notification service gRPC: `http://localhost:3003`
 - MailHog: `http://localhost:8025`
 - RabbitMQ UI: `http://localhost:15672`
+
+The notification service's REST and gRPC ports (3002/3003) have no authentication
+and are published to the host only for local debugging and the transport
+benchmark. Anyone reaching those ports can trigger an email send. Do not expose
+them outside a trusted local machine; a real deployment should keep them on the
+internal Docker network only (drop the host `ports:` mapping) or add a
+service-to-service token.
 
 ## Main Endpoints
 

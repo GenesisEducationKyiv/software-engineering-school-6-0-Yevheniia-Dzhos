@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { performance } from 'node:perf_hooks';
 import { createClient } from '@connectrpc/connect';
 import { createGrpcTransport } from '@connectrpc/connect-node';
-import { NotificationService } from '../src/generated/notification/v1/notification_pb.js';
+import { NotificationService } from '../packages/shared/contracts/notification.js';
 import { createNotificationGrpcServer } from '../services/notification-service/src/grpcServer.js';
 
 const target = process.env.BENCHMARK_TARGET || 'transport';

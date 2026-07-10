@@ -7,7 +7,7 @@ import {
   validateSubscriptionInput,
   validateToken
 } from '../../src/modules/subscriptions/subscriptionInputService.js';
-import { isValidEmail, isValidRepo, isValidToken } from '../../src/utils/validators.js';
+import { isValidEmail, isValidRepo, isValidToken } from '@notifier/shared/utils/validators.js';
 
 describe('subscription input validation', () => {
   it('normalizes subscription payloads before validation', () => {

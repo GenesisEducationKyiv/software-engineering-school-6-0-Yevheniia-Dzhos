@@ -16,10 +16,12 @@ const database = await import('../../services/notification-service/src/database.
 const notificationService = await import(
   '../../services/notification-service/src/notificationService.js'
 );
+const { logger } = await import('../../services/notification-service/src/observability.js');
 const { createApp } = await import('../../services/notification-service/src/app.js');
 
 describe('notification service app', () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
     emailClient.verifyEmailConnection.mockResolvedValue(undefined);
     database.verifyDatabaseConnection.mockResolvedValue(undefined);
@@ -117,8 +119,10 @@ describe('notification service app', () => {
   });
 
   it('maps subscription confirmation delivery failures to 502', async () => {
+    const loggerSpy = vi.spyOn(logger, 'error').mockImplementation(() => {});
+    const deliveryError = new Error('SMTP unavailable');
     notificationService.sendSubscriptionConfirmation
-      .mockRejectedValue(new Error('SMTP unavailable'));
+      .mockRejectedValue(deliveryError);
 
     const response = await request(createApp())
       .post('/api/notifications/subscription-confirmation')
@@ -130,5 +134,9 @@ describe('notification service app', () => {
 
     expect(response.status).toBe(502);
     expect(response.body).toEqual({ error: 'Email delivery failed' });
+    expect(loggerSpy).toHaveBeenCalledWith(
+      'Notification REST email delivery failed',
+      { error: deliveryError }
+    );
   });
 });

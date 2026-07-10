@@ -44,10 +44,10 @@ describe('notification gRPC client', () => {
       });
   });
 
-  it('maps delivery failures to 502', async () => {
+  it('maps delivery failures to 502 without leaking the raw transport error', async () => {
     const sendSubscriptionConfirmation = vi.fn()
       .mockRejectedValue(
-        new ConnectError('Email delivery failed', Code.Unavailable)
+        new Error('getaddrinfo ENOTFOUND notification-service')
       );
     const client = createNotificationGrpcClient({
       client: { sendSubscriptionConfirmation }
@@ -59,7 +59,27 @@ describe('notification gRPC client', () => {
       'owner/repo'
     )).rejects.toMatchObject({
       status: 502,
-      message: 'Email delivery failed'
+      message: 'Notification gRPC service unavailable'
+    });
+  });
+
+  it('marks deadline exceeded errors as uncertain delivery timeouts without leaking raw text', async () => {
+    const sendSubscriptionConfirmation = vi.fn()
+      .mockRejectedValue(
+        new ConnectError('deadline exceeded waiting on upstream socket', Code.DeadlineExceeded)
+      );
+    const client = createNotificationGrpcClient({
+      client: { sendSubscriptionConfirmation }
+    });
+
+    await expect(client.sendSubscriptionConfirmation(
+      'user@example.com',
+      'confirm-token-123',
+      'owner/repo'
+    )).rejects.toMatchObject({
+      status: 504,
+      message: 'Notification gRPC request timed out',
+      deliveryUncertain: true
     });
   });
 

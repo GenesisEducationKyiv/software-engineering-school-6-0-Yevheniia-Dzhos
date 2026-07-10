@@ -39,7 +39,6 @@ RabbitMQ queue. They are modeled as commands, not domain events, because the
 main application asks this service to perform one specific side effect: send an
 email.
 
-- `notification.subscription-confirmation.send`
 - `notification.release.send`
 
 Message IDs are claimed in PostgreSQL before email delivery and acknowledged
@@ -52,11 +51,9 @@ The topic routing key `notification.*.send` keeps the queue reusable for the
 current email commands. If notification command types grow, they can be split
 into separate handlers or queues without changing the rest of the system.
 
-If a `notification.subscription-confirmation.send` command carries a `sagaId`,
-the consumer publishes a `saga.subscription-confirmation.succeeded` or
-`saga.subscription-confirmation.failed` reply to the saga reply exchange after
-handling it, so the main application's orchestrated saga can complete or
-compensate the subscription.
+Subscription confirmation now uses the synchronous gRPC endpoint. The
+`notification.subscription-confirmation.send` RabbitMQ command and saga replies
+are kept only as a legacy compatibility path.
 
 The readiness endpoint verifies SMTP, PostgreSQL, and that the gRPC server is
 listening. The RabbitMQ consumer starts independently with retry, so synchronous

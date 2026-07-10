@@ -1,7 +1,7 @@
 import { Code, ConnectError, createClient } from '@connectrpc/connect';
 import { createGrpcTransport } from '@connectrpc/connect-node';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { NotificationService } from '../../src/generated/notification/v1/notification_pb.js';
+import { NotificationService } from '../../packages/shared/contracts/notification.js';
 
 vi.mock('../../services/notification-service/src/notificationService.js', () => ({
   sendSubscriptionConfirmation: vi.fn()
@@ -11,6 +11,7 @@ const {
   createNotificationGrpcHandlers,
   createNotificationGrpcServer
 } = await import('../../services/notification-service/src/grpcServer.js');
+const { logger } = await import('../../services/notification-service/src/observability.js');
 
 describe('notification gRPC server', () => {
   const notificationService = {
@@ -18,6 +19,7 @@ describe('notification gRPC server', () => {
   };
 
   beforeEach(() => {
+    vi.restoreAllMocks();
     notificationService.sendSubscriptionConfirmation.mockReset();
   });
 
@@ -56,8 +58,10 @@ describe('notification gRPC server', () => {
   });
 
   it('maps delivery failures to UNAVAILABLE', async () => {
+    const loggerSpy = vi.spyOn(logger, 'error').mockImplementation(() => {});
+    const deliveryError = new Error('SMTP unavailable');
     notificationService.sendSubscriptionConfirmation
-      .mockRejectedValue(new Error('SMTP unavailable'));
+      .mockRejectedValue(deliveryError);
     const handlers = createNotificationGrpcHandlers({ notificationService });
 
     let error;
@@ -74,6 +78,10 @@ describe('notification gRPC server', () => {
     expect(error).toBeInstanceOf(ConnectError);
     expect(error.code).toBe(Code.Unavailable);
     expect(error.message).toContain('Email delivery failed');
+    expect(loggerSpy).toHaveBeenCalledWith(
+      'Notification gRPC email delivery failed',
+      { error: deliveryError }
+    );
   });
 
   it('serves unary gRPC requests over HTTP/2', { timeout: 15000 }, async () => {

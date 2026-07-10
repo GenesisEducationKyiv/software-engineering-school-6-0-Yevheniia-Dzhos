@@ -1,6 +1,6 @@
 import { Code, ConnectError, createClient } from '@connectrpc/connect';
 import { createGrpcTransport } from '@connectrpc/connect-node';
-import { NotificationService } from '../../generated/notification/v1/notification_pb.js';
+import { NotificationService } from '@notifier/shared/contracts/notification.js';
 import { AppError } from '@notifier/shared/utils/errors.js';
 
 function createNotificationClient({ baseUrl, timeoutMs }) {
@@ -27,10 +27,13 @@ function mapGrpcError(error) {
     );
   }
 
-  return new AppError(
-    502,
-    connectError.rawMessage || 'Notification gRPC service unavailable'
-  );
+  if (connectError.code === Code.DeadlineExceeded) {
+    const timeoutError = new AppError(504, 'Notification gRPC request timed out');
+    timeoutError.deliveryUncertain = true;
+    return timeoutError;
+  }
+
+  return new AppError(502, 'Notification gRPC service unavailable');
 }
 
 export function createNotificationGrpcClient({
