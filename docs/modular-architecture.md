@@ -52,10 +52,18 @@ Public API: `packages/shared/modules/messaging`
 ### Sagas
 
 Orchestrates the subscription-confirmation flow as a saga: creates the
-subscription and a saga record in one transaction, dispatches the
-confirmation-email command, and waits for a reply from the notification
-service. On failure or timeout it compensates by deleting the pending
-subscription.
+subscription and a saga record in one transaction, calls the notification
+service synchronously over gRPC, and completes or fails the saga in the same
+request path. On a confirmed delivery failure it compensates by deleting the
+pending subscription. On a gRPC timeout it keeps the pending subscription
+because the email delivery result is unknown.
+
+The RabbitMQ Saga reply consumer, the `saga.replies` topology, and the
+`notification.subscription-confirmation.send` command are still provisioned
+at startup, but nothing in the codebase publishes that command anymore —
+subscription confirmation always goes through the synchronous gRPC call now.
+This machinery is unused for this flow, not merely legacy, and is a candidate
+for removal unless a future Saga reuses the async reply pattern.
 
 Public API: `src/modules/sagas/index.js`
 

@@ -1,15 +1,6 @@
-import { isValidEmail, isValidRepo, isValidToken } from '../../../src/utils/validators.js';
+import { validateSubscriptionConfirmationRequest } from '@notifier/shared/utils/validators.js';
 import { sendSubscriptionConfirmation } from './notificationService.js';
-
-function validateSubscriptionConfirmationRequest(body) {
-  const { email, token, repo } = body || {};
-
-  if (!isValidEmail(email)) return 'Invalid or missing field: email';
-  if (!isValidToken(token)) return 'Invalid or missing field: token';
-  if (!isValidRepo(repo)) return 'Invalid or missing field: repo';
-
-  return null;
-}
+import { logger } from './observability.js';
 
 function sendJson(res, next, status, body) {
   try {
@@ -32,7 +23,8 @@ export async function sendSubscriptionConfirmationRest(req, res, next) {
   try {
     await sendSubscriptionConfirmation(email.trim().toLowerCase(), token, repo.trim());
     sendJson(res, next, 200, { status: 'sent' });
-  } catch {
+  } catch (error) {
+    logger.error('Notification REST email delivery failed', { error });
     sendJson(res, next, 502, { error: 'Email delivery failed' });
   }
 }
