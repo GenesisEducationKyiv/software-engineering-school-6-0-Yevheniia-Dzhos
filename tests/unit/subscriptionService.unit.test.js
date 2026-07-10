@@ -10,7 +10,16 @@ vi.mock('../../src/db/client.js', () => ({
 vi.mock('../../src/modules/sagas/subscriptionConfirmationSaga.js', () => ({
   createSubscriptionConfirmationSaga: vi.fn(),
   dispatchSubscriptionConfirmationSaga: vi.fn(),
-  startSubscriptionConfirmationSaga: vi.fn()
+  startSubscriptionConfirmationSaga: vi.fn(),
+  subscriptionConfirmationSagaType: 'subscription-confirmation',
+  sagaStates: {
+    started: 'STARTED',
+    notificationPending: 'NOTIFICATION_PENDING',
+    completed: 'COMPLETED',
+    compensating: 'COMPENSATING',
+    compensated: 'COMPENSATED',
+    failed: 'FAILED'
+  }
 }));
 vi.mock('../../src/modules/subscriptions/subscriptionRepository.js', () => ({
   findActiveSubscription: vi.fn(),

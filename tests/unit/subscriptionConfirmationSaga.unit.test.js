@@ -4,8 +4,8 @@ import { AppError } from '@notifier/shared/utils/errors.js';
 vi.mock('../../src/modules/notifications/index.js', () => ({
   sendSubscriptionConfirmationGrpc: vi.fn()
 }));
-vi.mock('../../src/modules/subscriptions/subscriptionRepository.js', () => ({
-  deletePendingSubscription: vi.fn()
+vi.mock('../../src/modules/subscriptions/index.js', () => ({
+  removePendingSubscription: vi.fn()
 }));
 vi.mock('../../src/modules/sagas/sagaRepository.js', () => ({
   createSaga: vi.fn(),
@@ -16,9 +16,7 @@ vi.mock('../../src/modules/sagas/sagaRepository.js', () => ({
 }));
 
 const notifications = await import('../../src/modules/notifications/index.js');
-const subscriptionRepository = await import(
-  '../../src/modules/subscriptions/subscriptionRepository.js'
-);
+const subscriptions = await import('../../src/modules/subscriptions/index.js');
 const sagaRepository = await import('../../src/modules/sagas/sagaRepository.js');
 const {
   dispatchSubscriptionConfirmationSaga,
@@ -210,7 +208,7 @@ describe('subscription confirmation saga', () => {
       sagaStates.compensated,
       { error: 'Notification service unavailable', completed: true, expectedState: sagaStates.compensating }
     );
-    expect(subscriptionRepository.deletePendingSubscription).toHaveBeenCalledWith(10);
+    expect(subscriptions.removePendingSubscription).toHaveBeenCalledWith(10);
   });
 
   it('does not compensate when completion fails after notification delivery', async () => {
@@ -236,7 +234,7 @@ describe('subscription confirmation saga', () => {
 
     expect(sagaRepository.updateSagaState)
       .toHaveBeenCalledTimes(2);
-    expect(subscriptionRepository.deletePendingSubscription).not.toHaveBeenCalled();
+    expect(subscriptions.removePendingSubscription).not.toHaveBeenCalled();
   });
 
   it('does not delete a pending subscription when gRPC delivery times out', async () => {
@@ -280,7 +278,7 @@ describe('subscription confirmation saga', () => {
         expectedState: sagaStates.notificationPending
       }
     );
-    expect(subscriptionRepository.deletePendingSubscription).not.toHaveBeenCalled();
+    expect(subscriptions.removePendingSubscription).not.toHaveBeenCalled();
   });
 
   it('does not mask the original dispatch error when compensation fails', async () => {
@@ -389,7 +387,7 @@ describe('subscription confirmation saga', () => {
         error: 'SMTP unavailable',
         expectedState: sagaStates.notificationPending
       });
-    expect(subscriptionRepository.deletePendingSubscription).toHaveBeenCalledWith(10);
+    expect(subscriptions.removePendingSubscription).toHaveBeenCalledWith(10);
     expect(sagaRepository.updateSagaState)
       .toHaveBeenCalledWith('saga-1', sagaStates.compensated, {
         error: 'SMTP unavailable',
@@ -419,7 +417,7 @@ describe('subscription confirmation saga', () => {
         ...saga,
         state: sagaStates.failed
       });
-    subscriptionRepository.deletePendingSubscription
+    subscriptions.removePendingSubscription
       .mockRejectedValue(new Error('Database unavailable'));
 
     await handleSubscriptionConfirmationSagaReply({
