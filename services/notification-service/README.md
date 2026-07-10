@@ -10,6 +10,27 @@ that knows about SMTP, Nodemailer, and email templates.
 - `GET /health/live`
 - `GET /health/ready`
 - `GET /metrics`
+- `POST /api/notifications/subscription-confirmation`
+
+## gRPC
+
+The service exposes `notification.v1.NotificationService` on port `3003` by
+default. It uses `@connectrpc/connect-node` with the gRPC transport over HTTP/2.
+
+Unary RPC:
+
+```text
+SendSubscriptionConfirmation(SendSubscriptionConfirmationRequest)
+```
+
+The protobuf contract is defined in:
+
+```text
+proto/notification/v1/notification.proto
+```
+
+`INVALID_ARGUMENT` is returned for invalid email, token, or repository input.
+`UNAVAILABLE` is returned when email delivery fails.
 
 ## Message Consumer
 
@@ -37,9 +58,12 @@ the consumer publishes a `saga.subscription-confirmation.succeeded` or
 handling it, so the main application's orchestrated saga can complete or
 compensate the subscription.
 
-The readiness endpoint verifies SMTP and PostgreSQL. The consumer restores its
-subscription after RabbitMQ channel loss. SIGTERM and SIGINT stop the HTTP
-server, consumer, broker connection, and database pool.
+The readiness endpoint verifies SMTP, PostgreSQL, and that the gRPC server is
+listening. The RabbitMQ consumer starts independently with retry, so synchronous
+gRPC delivery can become available even while the broker is temporarily
+unavailable. The consumer restores its subscription after RabbitMQ channel loss.
+SIGTERM and SIGINT stop the HTTP server, gRPC server, consumer, broker
+connection, and database pool.
 
 ## Local Start
 
@@ -49,5 +73,6 @@ Set the RabbitMQ, SMTP, and application URL environment variables, then run:
 npm run notification:start
 ```
 
-The service listens on port `3002` by default.
+The HTTP service listens on port `3002` by default.
+The gRPC service listens on port `3003` by default.
 It writes structured JSON logs and exposes Prometheus RED metrics for HTTP traffic.

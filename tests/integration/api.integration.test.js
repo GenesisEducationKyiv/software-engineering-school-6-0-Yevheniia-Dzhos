@@ -14,6 +14,7 @@ let query;
 let githubServer;
 let notificationConsumer;
 let notificationBrokerClient;
+let notificationGrpcServer;
 let notificationPool;
 let closeNotificationPublisher;
 let closeSagaReplyConsumer;
@@ -95,18 +96,6 @@ async function waitForEmail(email, timeoutMs = 5000) {
   throw new Error(`Timed out waiting for email to ${email}`);
 }
 
-async function waitForProcessedMessage(timeoutMs = 5000) {
-  const deadline = Date.now() + timeoutMs;
-
-  while (Date.now() < deadline) {
-    const result = await query('SELECT message_id, message_type FROM processed_messages');
-    if (result.rows.length > 0) return result.rows[0];
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-
-  throw new Error('Timed out waiting for processed message record');
-}
-
 async function waitForSagaState(state, timeoutMs = 5000) {
   const deadline = Date.now() + timeoutMs;
 
@@ -119,11 +108,30 @@ async function waitForSagaState(state, timeoutMs = 5000) {
   throw new Error(`Timed out waiting for saga state ${state}`);
 }
 
+async function countProcessedMessages(type) {
+  const result = await query(
+    'SELECT COUNT(*)::int AS count FROM processed_messages WHERE message_type = $1',
+    [type]
+  );
+
+  return result.rows[0].count;
+}
+
 describe('API integration endpoints', () => {
   beforeAll(async () => {
     githubServer = createGithubStub();
     const githubPort = await listen(githubServer);
     process.env.GITHUB_API_URL = `http://127.0.0.1:${githubPort}`;
+
+    const grpcModule = await import(
+      '../../services/notification-service/src/grpcServer.js'
+    );
+    notificationGrpcServer = await grpcModule.startNotificationGrpcServer({
+      port: 0,
+      logger: { info() {} }
+    });
+    process.env.NOTIFICATION_SERVICE_GRPC_URL =
+      `http://127.0.0.1:${notificationGrpcServer.address().port}`;
 
     const appModule = await import('../../src/app.js');
     const sagaModule = await import('../../src/modules/sagas/index.js');
@@ -184,6 +192,7 @@ describe('API integration endpoints', () => {
     await notificationBrokerClient?.close();
     await notificationPool?.end();
     await pool?.end();
+    await close(notificationGrpcServer);
     await close(githubServer);
   });
 
@@ -238,13 +247,12 @@ describe('API integration endpoints', () => {
     });
     const email = await waitForEmail('user@example.com');
     expect(email.Content.Headers.Subject[0]).toContain('octocat/Hello-World');
-    await expect(waitForProcessedMessage()).resolves.toMatchObject({
-      message_id: expect.any(String),
-      message_type: 'notification.subscription-confirmation.send'
-    });
     await expect(waitForSagaState('COMPLETED')).resolves.toMatchObject({
       state: 'COMPLETED'
     });
+    await expect(countProcessedMessages(
+      'notification.subscription-confirmation.send'
+    )).resolves.toBe(0);
   });
 
   it('POST /api/subscribe resends confirmation for an existing pending subscription', async () => {

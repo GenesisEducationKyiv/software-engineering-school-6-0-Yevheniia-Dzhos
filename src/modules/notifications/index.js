@@ -1,6 +1,7 @@
 import { env } from '../../config/env.js';
 import { createBrokerClient } from '@notifier/shared/modules/messaging/brokerClient.js';
 import { createNotificationPublisher } from '@notifier/shared/modules/messaging/notificationPublisher.js';
+import { createNotificationGrpcClient } from './grpcClient.js';
 import {
   getNotificationTopologyConfig,
   notificationCommands
@@ -16,6 +17,10 @@ const publisher = createNotificationPublisher({
   brokerClient,
   topology: getNotificationTopologyConfig(env),
   logger
+});
+const grpcClient = createNotificationGrpcClient({
+  baseUrl: env.notificationServiceGrpcUrl,
+  timeoutMs: env.notificationServiceGrpcTimeoutMs
 });
 
 export async function sendSubscriptionConfirmation(email, token, repo, metadata = {}) {
@@ -37,6 +42,10 @@ export async function sendReleaseNotification(email, repo, tag, unsubscribeToken
     tag,
     unsubscribeToken
   });
+}
+
+export async function sendSubscriptionConfirmationGrpc(email, token, repo) {
+  return grpcClient.sendSubscriptionConfirmation(email, token, repo);
 }
 
 export async function closeNotificationPublisher() {

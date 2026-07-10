@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package notification.v1;
+
+service NotificationService {
+  rpc SendSubscriptionConfirmation(SendSubscriptionConfirmationRequest)
+      returns (SendSubscriptionConfirmationResponse);
+}
+
+message SendSubscriptionConfirmationRequest {
+  string email = 1;
+  string token = 2;
+  string repo = 3;
+}
+
+message SendSubscriptionConfirmationResponse {
+  string status = 1;
+}

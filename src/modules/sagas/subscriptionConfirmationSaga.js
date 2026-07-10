@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { sendSubscriptionConfirmation } from '../notifications/index.js';
+import { sendSubscriptionConfirmationGrpc } from '../notifications/index.js';
 import { deletePendingSubscription } from '../subscriptions/subscriptionRepository.js';
 import {
   createSaga,
@@ -40,6 +40,35 @@ const activeStates = [
 function isActiveSagaConflict(error) {
   return error?.code === '23505'
     && error?.constraint === 'idx_sagas_active_subscription_confirmation';
+}
+
+async function compensateWithoutMaskingOriginalError(sagaId, error) {
+  try {
+    await compensateSubscriptionConfirmationSaga(sagaId, error);
+  } catch (compensationError) {
+    throw new Error(error.message, {
+      cause: {
+        original: error,
+        compensation: compensationError
+      }
+    });
+  }
+
+  throw error;
+}
+
+async function completeAfterNotificationDelivery(sagaId) {
+  const completedSaga = await updateSagaStateOrReload(sagaId, sagaStates.completed, {
+    completed: true,
+    error: null,
+    expectedState: sagaStates.notificationPending
+  });
+
+  if (completedSaga?.state !== sagaStates.completed) {
+    throw new Error('Subscription confirmation saga completion conflict');
+  }
+
+  return completedSaga;
 }
 
 async function updateSagaStateOrReload(id, state, options) {
@@ -124,18 +153,16 @@ export async function dispatchSubscriptionConfirmationSaga(saga) {
     });
     if (!pendingSaga) return findSagaById(saga.id);
 
-    await sendSubscriptionConfirmation(
+    await sendSubscriptionConfirmationGrpc(
       pendingSaga.payload.email,
       pendingSaga.payload.confirmToken,
-      pendingSaga.payload.repo,
-      { sagaId: pendingSaga.id }
+      pendingSaga.payload.repo
     );
   } catch (error) {
-    await compensateSubscriptionConfirmationSaga(saga.id, error);
-    throw error;
+    await compensateWithoutMaskingOriginalError(saga.id, error);
   }
 
-  return findSagaById(saga.id);
+  return completeAfterNotificationDelivery(saga.id);
 }
 
 export async function handleSubscriptionConfirmationSagaReply({
