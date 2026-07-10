@@ -51,11 +51,16 @@ async function startConsumerWithRetry() {
   }
 }
 
-grpcServer = await startNotificationGrpcServer({
-  port: env.grpcPort,
-  logger,
-  requestTimeoutMs: env.grpcRequestTimeoutMs
-});
+try {
+  grpcServer = await startNotificationGrpcServer({
+    port: env.grpcPort,
+    logger,
+    requestTimeoutMs: env.grpcRequestTimeoutMs
+  });
+} catch (error) {
+  logger.error('Notification gRPC server start failed', { error });
+  process.exit(1);
+}
 
 const server = app.listen(env.port, () => {
   logger.info('Notification service started', { port: env.port });

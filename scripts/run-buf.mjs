@@ -32,36 +32,4 @@ if (result.error) {
   process.exit(1);
 }
 
-if (mode === 'generate' && result.status === 0) {
-  stripGeneratedComments(path.join(rootDir, 'src', 'generated'));
-}
-
 process.exit(result.status ?? 1);
-
-function stripGeneratedComments(directory) {
-  if (!fs.existsSync(directory)) {
-    return;
-  }
-
-  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-    const entryPath = path.join(directory, entry.name);
-
-    if (entry.isDirectory()) {
-      stripGeneratedComments(entryPath);
-      continue;
-    }
-
-    if (!entry.name.endsWith('.js')) {
-      continue;
-    }
-
-    const source = fs.readFileSync(entryPath, 'utf8');
-    const withoutComments = source
-      .replace(/^\s*\/\/.*(?:\r?\n|$)/gm, '')
-      .replace(/\/\*[\s\S]*?\*\//g, '')
-      .replace(/\n{3,}/g, '\n\n')
-      .trimStart();
-
-    fs.writeFileSync(entryPath, withoutComments);
-  }
-}

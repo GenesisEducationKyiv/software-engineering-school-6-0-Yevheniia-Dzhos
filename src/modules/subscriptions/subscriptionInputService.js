@@ -1,5 +1,5 @@
 import { AppError } from '@notifier/shared/utils/errors.js';
-import { isValidEmail, isValidRepo, isValidToken } from '../../utils/validators.js';
+import { isValidEmail, isValidRepo, isValidToken } from '@notifier/shared/utils/validators.js';
 
 export function normalizeSubscriptionInput({ email, repo }) {
     return {

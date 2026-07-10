@@ -43,6 +43,15 @@ function isActiveSagaConflict(error) {
 }
 
 async function compensateWithoutMaskingOriginalError(sagaId, error) {
+  if (error.deliveryUncertain) {
+    await updateSagaStateOrReload(sagaId, sagaStates.failed, {
+      error: error.message,
+      completed: true,
+      expectedState: sagaStates.notificationPending
+    });
+    throw error;
+  }
+
   try {
     await compensateSubscriptionConfirmationSaga(sagaId, error);
   } catch (compensationError) {

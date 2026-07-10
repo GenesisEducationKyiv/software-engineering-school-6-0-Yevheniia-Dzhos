@@ -1,7 +1,7 @@
 version: v2
 plugins:
   - local: protoc-gen-es
-    out: src/generated
+    out: packages/shared/generated
     opt:
       - target=js
       - import_extension=js
