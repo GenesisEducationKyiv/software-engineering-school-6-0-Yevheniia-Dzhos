@@ -3,7 +3,10 @@ import {
   notificationCommands,
   sagaReplyEvents
 } from '@notifier/shared/modules/messaging/topology.js';
-import { createBrokerConsumerRuntime } from '@notifier/shared/modules/messaging/consumerRuntime.js';
+import {
+  createBrokerConsumerRuntime,
+  getDeadLetterAttemptCount
+} from '@notifier/shared/modules/messaging/consumerRuntime.js';
 import {
   sendReleaseNotification,
   sendSubscriptionConfirmation
@@ -15,27 +18,23 @@ import {
   recordProcessedMessage
 } from './processedMessageRepository.js';
 
-const handlers = {
-  [notificationCommands.subscriptionConfirmation]: ({
-    email,
-    token,
-    repo
-  }, command) => sendSubscriptionConfirmation(email, token, repo, command.id),
-  [notificationCommands.release]: ({
-    email,
-    repo,
-    tag,
-    unsubscribeToken
-  }, command) => sendReleaseNotification(email, repo, tag, unsubscribeToken, command.id)
-};
-
-const payloadFields = {
-  [notificationCommands.subscriptionConfirmation]: ['email', 'token', 'repo'],
-  [notificationCommands.release]: ['email', 'repo', 'tag', 'unsubscribeToken']
+const commandHandlers = {
+  [notificationCommands.subscriptionConfirmation]: {
+    fields: ['email', 'token', 'repo'],
+    handle: ({ email, token, repo }, command) => sendSubscriptionConfirmation(
+      email, token, repo, command.id
+    )
+  },
+  [notificationCommands.release]: {
+    fields: ['email', 'repo', 'tag', 'unsubscribeToken'],
+    handle: ({ email, repo, tag, unsubscribeToken }, command) => sendReleaseNotification(
+      email, repo, tag, unsubscribeToken, command.id
+    )
+  }
 };
 
 function hasRequiredPayloadFields(type, payload) {
-  const fields = payloadFields[type];
+  const fields = commandHandlers[type]?.fields;
   return Boolean(
     fields
     && payload
@@ -63,11 +62,7 @@ export function createNotificationConsumer({
   setNotificationMessagesInFlight = () => { }
 }) {
   function getAttemptCount(message) {
-    const death = message.properties.headers?.['x-death']?.find((entry) => {
-      return entry.queue === topology.queue;
-    });
-
-    return Number(death?.count || 0) + 1;
+    return getDeadLetterAttemptCount(message, topology.queue);
   }
 
   async function moveToDeadLetter(message, deliveryChannel) {
@@ -132,7 +127,7 @@ export function createNotificationConsumer({
       return;
     }
 
-    const handler = handlers[command.type];
+    const handler = commandHandlers[command.type]?.handle;
 
     if (
       !handler

@@ -2,4 +2,6 @@ node_modules
 .env
 coverage
 tests/test-results/
+test-results/
+tests/e2e/test-results/
 .buf-cache/

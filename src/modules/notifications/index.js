@@ -1,11 +1,11 @@
 import { env } from '../../config/env.js';
-import { createBrokerClient } from '@notifier/shared/modules/messaging/brokerClient.js';
-import { createNotificationPublisher } from '@notifier/shared/modules/messaging/notificationPublisher.js';
 import { createNotificationGrpcClient } from './grpcClient.js';
 import {
+  createBrokerClient,
+  createNotificationPublisher,
   getNotificationTopologyConfig,
   notificationCommands
-} from '@notifier/shared/modules/messaging/topology.js';
+} from '@notifier/shared/modules/messaging/index.js';
 import { logger } from '@notifier/shared/modules/observability/index.js';
 
 const brokerClient = createBrokerClient({

@@ -14,6 +14,9 @@ vi.mock('../../src/modules/releaseTracking/trackedRepositoryRepository.js', () =
 vi.mock('../../src/modules/subscriptions/index.js', () => ({
   listActiveSubscribersForRepository: vi.fn()
 }));
+vi.mock('../../src/db/client.js', () => ({
+  withTransaction: vi.fn(async (work) => work({ query: vi.fn() }))
+}));
 vi.mock('@notifier/shared/modules/observability/index.js', () => ({
   logger: {
     error: vi.fn()
@@ -58,8 +61,28 @@ describe('release scanner service', () => {
       .toHaveBeenCalledWith('b@example.com', 'owner/repo', 'v1.1.0', 'unsubscribe-b');
 
     expect(trackedRepositoryRepository.recordDiscoveredRelease)
-      .toHaveBeenCalledWith(1, 'v1.1.0');
-    expect(trackedRepositoryRepository.updateLastSeenTag).toHaveBeenCalledWith(1, 'v1.1.0');
+      .toHaveBeenCalledWith(1, 'v1.1.0', expect.anything());
+    expect(trackedRepositoryRepository.updateLastSeenTag)
+      .toHaveBeenCalledWith(1, 'v1.1.0', expect.anything());
+  });
+
+  it('records the discovered release and the last-seen tag in the same transaction', async () => {
+    trackedRepositoryRepository.findRepositoriesWithActiveSubscriptions.mockResolvedValue([
+      { id: 1, full_name: 'owner/repo', last_seen_tag: 'v1.0.0' }
+    ]);
+    githubService.fetchLatestReleaseTag.mockResolvedValue('v1.1.0');
+    subscriptionsModule.listActiveSubscribersForRepository.mockResolvedValue([
+      { email: 'a@example.com', unsubscribe_token: 'unsubscribe-a' }
+    ]);
+
+    await scanForNewReleases();
+
+    const dbClient = await import('../../src/db/client.js');
+    expect(dbClient.withTransaction).toHaveBeenCalledTimes(1);
+    const usedClient = trackedRepositoryRepository.recordDiscoveredRelease.mock.calls[0][2];
+    expect(usedClient).toBeDefined();
+    expect(trackedRepositoryRepository.updateLastSeenTag)
+      .toHaveBeenCalledWith(1, 'v1.1.0', usedClient);
   });
 
   it('does nothing when the latest tag did not change', async () => {
@@ -76,7 +99,7 @@ describe('release scanner service', () => {
     expect(trackedRepositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
   });
 
-  it('marks the release as handled after a partial delivery failure', async () => {
+  it('keeps the release pending after a partial delivery failure so the failed subscriber is retried', async () => {
     trackedRepositoryRepository.findRepositoriesWithActiveSubscriptions.mockResolvedValue([
       { id: 1, full_name: 'owner/repo', last_seen_tag: 'v1.0.0' }
     ]);
@@ -91,9 +114,8 @@ describe('release scanner service', () => {
 
     await scanForNewReleases();
 
-    expect(trackedRepositoryRepository.recordDiscoveredRelease)
-      .toHaveBeenCalledWith(1, 'v1.1.0');
-    expect(trackedRepositoryRepository.updateLastSeenTag).toHaveBeenCalledWith(1, 'v1.1.0');
+    expect(trackedRepositoryRepository.recordDiscoveredRelease).not.toHaveBeenCalled();
+    expect(trackedRepositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
     expect(logger.error).toHaveBeenCalledWith(
       'Release notification delivery failed',
       expect.objectContaining({
@@ -121,8 +143,9 @@ describe('release scanner service', () => {
 
     expect(notificationsModule.sendReleaseNotification).toHaveBeenCalledTimes(2);
     expect(trackedRepositoryRepository.recordDiscoveredRelease)
-      .toHaveBeenCalledWith(1, 'v1.1.0');
-    expect(trackedRepositoryRepository.updateLastSeenTag).toHaveBeenCalledWith(1, 'v1.1.0');
+      .toHaveBeenCalledWith(1, 'v1.1.0', expect.anything());
+    expect(trackedRepositoryRepository.updateLastSeenTag)
+      .toHaveBeenCalledWith(1, 'v1.1.0', expect.anything());
     expect(logger.error).not.toHaveBeenCalledWith(
       'Release notification delivery failed',
       expect.anything()

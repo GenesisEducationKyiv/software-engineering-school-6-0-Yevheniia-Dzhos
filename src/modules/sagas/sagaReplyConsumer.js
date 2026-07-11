@@ -2,7 +2,10 @@ import {
   assertNotificationTopology,
   sagaReplyEvents
 } from '@notifier/shared/modules/messaging/topology.js';
-import { createBrokerConsumerRuntime } from '@notifier/shared/modules/messaging/consumerRuntime.js';
+import {
+  createBrokerConsumerRuntime,
+  getDeadLetterAttemptCount
+} from '@notifier/shared/modules/messaging/consumerRuntime.js';
 import {
   hasProcessedSagaReply,
   recordProcessedSagaReply
@@ -32,11 +35,7 @@ export function createSagaReplyConsumer({
   logger
 }) {
   function getAttemptCount(message) {
-    const death = message.properties.headers?.['x-death']?.find((entry) => {
-      return entry.queue === topology.sagaReplyQueue;
-    });
-
-    return Number(death?.count || 0) + 1;
+    return getDeadLetterAttemptCount(message, topology.sagaReplyQueue);
   }
 
   async function moveToDeadLetter(message, deliveryChannel) {

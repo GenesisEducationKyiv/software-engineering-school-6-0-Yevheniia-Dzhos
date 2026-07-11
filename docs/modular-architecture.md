@@ -3,6 +3,8 @@
 The application is organized around explicit module boundaries instead of
 global technical-layer folders.
 
+See also: `docs/application-architecture.md`.
+
 ## Modules
 
 ### Subscriptions
@@ -66,6 +68,43 @@ This machinery is unused for this flow, not merely legacy, and is a candidate
 for removal unless a future Saga reuses the async reply pattern.
 
 Public API: `src/modules/sagas/index.js`
+
+### Notifications
+
+Owns notification transport from the main app perspective:
+
+- RabbitMQ notification command publishing
+- gRPC notification client
+- release notification dispatch API
+- subscription confirmation dispatch API
+
+Public API: `src/modules/notifications/index.js`
+
+## Layering Rules
+
+Each module follows the same dependency direction:
+
+```text
+Routes -> Controllers -> Services -> Repositories / Clients
+```
+
+Rules:
+
+- routes and controllers do not import repositories directly;
+- repositories do not import services, controllers, or routes;
+- application services do not import Express;
+- cross-module imports go through the target module `index.js`;
+- shared infrastructure such as RabbitMQ topology is exposed from its module
+  public API.
+
+These rules are checked by
+`tests/unit/architectureDependencies.unit.test.js`.
+
+Run the architecture check directly:
+
+```bash
+npm run arch:check
+```
 
 ## Extracted Microservice
 

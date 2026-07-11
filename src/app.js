@@ -1,5 +1,4 @@
 import express from 'express';
-import cors from 'cors';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import swaggerUi from 'swagger-ui-express';
@@ -17,9 +16,8 @@ export function createApp() {
   const app = express();
   const swaggerDocument = loadSwaggerDocument();
 
-  app.use(cors());
   registerObservability(app);
-  app.use(express.json());
+  app.use(express.json({ limit: '100kb' }));
   app.use(express.static(publicDirectory));
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
   const apiRouter = express.Router();

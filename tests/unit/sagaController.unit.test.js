@@ -6,7 +6,7 @@ vi.mock('../../src/modules/sagas/sagaRepository.js', () => ({
 }));
 
 const sagaRepository = await import('../../src/modules/sagas/sagaRepository.js');
-const { listSagas } = await import('../../src/modules/sagas/sagaController.js');
+const { getSaga, listSagas } = await import('../../src/modules/sagas/sagaController.js');
 
 function createResponse() {
   return {
@@ -92,5 +92,65 @@ describe('saga controller', () => {
       payload: { repo: 'owner/repo' },
       error: 'Saga failed, check internal logs for details'
     }]);
+  });
+
+  describe('getSaga', () => {
+    it('rejects an id that is not a valid UUID', async () => {
+      const response = createResponse();
+      const next = vi.fn();
+
+      await getSaga({ params: { id: 'not-a-uuid' } }, response, next);
+
+      expect(sagaRepository.findSagaById).not.toHaveBeenCalled();
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({
+        status: 400,
+        message: 'Invalid saga id'
+      }));
+    });
+
+    it('returns 404 when no saga matches the id', async () => {
+      sagaRepository.findSagaById.mockResolvedValue(null);
+      const response = createResponse();
+      const next = vi.fn();
+
+      await getSaga({ params: { id: '123e4567-e89b-12d3-a456-426614174000' } }, response, next);
+
+      expect(next).toHaveBeenCalledWith(expect.objectContaining({
+        status: 404,
+        message: 'Saga not found'
+      }));
+    });
+
+    it('sanitizes sensitive saga fields in the single-saga response', async () => {
+      sagaRepository.findSagaById.mockResolvedValue({
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        type: 'subscription-confirmation',
+        state: 'FAILED',
+        payload: {
+          email: 'user@example.com',
+          confirmToken: 'secret-token',
+          repo: 'owner/repo'
+        },
+        error: 'Database unavailable at postgres://internal'
+      });
+      const response = createResponse();
+
+      await getSaga(
+        { params: { id: '123e4567-e89b-12d3-a456-426614174000' } },
+        response,
+        vi.fn()
+      );
+
+      expect(sagaRepository.findSagaById)
+        .toHaveBeenCalledWith('123e4567-e89b-12d3-a456-426614174000');
+      expect(response.status).toHaveBeenCalledWith(200);
+      expect(response.json).toHaveBeenCalledWith({
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        type: 'subscription-confirmation',
+        state: 'FAILED',
+        payload: { repo: 'owner/repo' },
+        error: 'Saga failed, check internal logs for details'
+      });
+    });
   });
 });

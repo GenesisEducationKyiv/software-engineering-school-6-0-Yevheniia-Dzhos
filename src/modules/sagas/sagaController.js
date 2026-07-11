@@ -1,5 +1,5 @@
-import { findSagaById, listRecentSagas } from './sagaRepository.js';
 import { AppError } from '@notifier/shared/utils/errors.js';
+import { getSagaById, listSagas as listSagaRecords } from './sagaService.js';
 import { sagaStates, subscriptionConfirmationSagaType } from './subscriptionConfirmationSaga.js';
 
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -57,7 +57,7 @@ function sanitizeSaga(saga) {
 
 export async function listSagas(req, res, next) {
   try {
-    const sagas = await listRecentSagas(getSagaListFilters(req.query));
+    const sagas = await listSagaRecords(getSagaListFilters(req.query));
     res.status(200).json(sagas.map(sanitizeSaga));
   } catch (error) {
     next(error);
@@ -70,7 +70,7 @@ export async function getSaga(req, res, next) {
       throw new AppError(400, 'Invalid saga id');
     }
 
-    const saga = await findSagaById(req.params.id);
+    const saga = await getSagaById(req.params.id);
 
     if (!saga) {
       throw new AppError(404, 'Saga not found');

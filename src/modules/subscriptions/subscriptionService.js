@@ -12,7 +12,7 @@ import {
   createSubscriptionConfirmationSaga,
   dispatchSubscriptionConfirmationSaga,
   startSubscriptionConfirmationSaga
-} from '../sagas/subscriptionConfirmationSaga.js';
+} from '../sagas/index.js';
 import {
   findActiveSubscription,
   createSubscriptionRecord,

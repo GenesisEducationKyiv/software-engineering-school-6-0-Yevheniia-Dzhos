@@ -11,16 +11,6 @@ function getMinimumLevel() {
   return levels[configuredLevel] || levels.info;
 }
 
-function serializeError(error) {
-  if (!error) return undefined;
-
-  return {
-    name: error.name,
-    message: error.message,
-    stack: error.stack
-  };
-}
-
 function isSensitiveKey(key) {
   const normalizedKey = key.toLowerCase();
 
@@ -55,6 +45,21 @@ function sanitizeLogValue(value) {
   }
 
   return value;
+}
+
+function serializeError(error) {
+  if (!error) return undefined;
+
+  const { name, message, stack, ...extra } = Object.fromEntries(
+    Object.getOwnPropertyNames(error).map((key) => [key, error[key]])
+  );
+
+  return {
+    name,
+    message,
+    stack,
+    ...sanitizeLogValue(extra)
+  };
 }
 
 export function createLogger(service) {

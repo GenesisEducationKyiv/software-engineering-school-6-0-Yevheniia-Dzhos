@@ -33,8 +33,9 @@ export async function findRepositoriesWithActiveSubscriptions() {
     return result.rows;
 }
 
-export async function updateLastSeenTag(repositoryId, latestTag) {
-    await query(
+export async function updateLastSeenTag(repositoryId, latestTag, client) {
+    const executor = client || { query };
+    await executor.query(
         `UPDATE repositories
      SET last_seen_tag = $1, updated_at = NOW()
      WHERE id = $2`,
@@ -42,8 +43,9 @@ export async function updateLastSeenTag(repositoryId, latestTag) {
     );
 }
 
-export async function recordDiscoveredRelease(repositoryId, tag) {
-    await query(
+export async function recordDiscoveredRelease(repositoryId, tag, client) {
+    const executor = client || { query };
+    await executor.query(
         `INSERT INTO releases (repository_id, tag)
      VALUES ($1, $2)
      ON CONFLICT (repository_id, tag) DO NOTHING`,
