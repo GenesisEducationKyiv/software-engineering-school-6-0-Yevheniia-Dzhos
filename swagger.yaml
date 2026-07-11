@@ -1,0 +1,257 @@
+swagger: "2.0"
+info:
+  description: "GitHub Release Notification API that allows users to subscribe to email notifications about new releases of a chosen GitHub repository."
+  version: "1.0.0"
+  title: "GitHub Release Notification API"
+host: "releases-api.app"
+basePath: "/api"
+tags:
+  - name: "subscription"
+    description: "Subscription management operations"
+  - name: "saga"
+    description: "Saga monitoring operations"
+schemes:
+  - "http"
+  - "https"
+paths:
+  /subscribe:
+    post:
+      tags:
+        - "subscription"
+      summary: "Subscribe to release notifications"
+      description: "Subscribe an email to receive notifications about new releases of a GitHub repository. The repository is validated via GitHub API."
+      operationId: "subscribe"
+      consumes:
+        - "application/json"
+      produces:
+        - "application/json"
+      parameters:
+        - in: "body"
+          name: "body"
+          description: "Subscription request"
+          required: true
+          schema:
+            $ref: "#/definitions/SubscribeRequest"
+      responses:
+        "200":
+          description: "Subscription successful. Confirmation email sent."
+          schema:
+            $ref: "#/definitions/SubscribeResponse"
+        "400":
+          description: "Invalid input (e.g., invalid repo format)"
+        "404":
+          description: "Repository not found on GitHub"
+        "409":
+          description: "Email already subscribed to this repository"
+        "502":
+          description: "Notification service unavailable"
+  /confirm/{token}:
+    get:
+      tags:
+        - "subscription"
+      summary: "Confirm email subscription"
+      description: "Confirms a subscription using the token sent in the confirmation email."
+      operationId: "confirmSubscription"
+      parameters:
+        - name: "token"
+          in: "path"
+          description: "Confirmation token"
+          required: true
+          type: "string"
+      produces:
+        - "application/json"
+      responses:
+        "200":
+          description: "Subscription confirmed successfully"
+        "400":
+          description: "Invalid token"
+        "404":
+          description: "Token not found"
+  /unsubscribe/{token}:
+    get:
+      tags:
+        - "subscription"
+      summary: "Unsubscribe from release notifications"
+      description: "Unsubscribes an email from release notifications using the token sent in emails."
+      operationId: "unsubscribe"
+      parameters:
+        - name: "token"
+          in: "path"
+          description: "Unsubscribe token"
+          required: true
+          type: "string"
+      produces:
+        - "application/json"
+      responses:
+        "200":
+          description: "Unsubscribed successfully"
+        "400":
+          description: "Invalid token"
+        "404":
+          description: "Token not found"
+  /subscriptions:
+    get:
+      tags:
+        - "subscription"
+      summary: "Get subscriptions for an email"
+      description: "Returns all active subscriptions for the given email address."
+      operationId: "getSubscriptions"
+      parameters:
+        - name: "email"
+          in: "query"
+          description: "Email address to look up subscriptions for"
+          required: true
+          type: "string"
+      produces:
+        - "application/json"
+      responses:
+        "200":
+          description: "Successful operation - list of subscriptions returned"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/Subscription"
+        "400":
+          description: "Invalid email"
+  /sagas:
+    get:
+      tags:
+        - "saga"
+      summary: "List recent Sagas"
+      description: "Returns recent Saga records with sensitive payload fields removed."
+      operationId: "listSagas"
+      parameters:
+        - name: "x-saga-api-token"
+          in: "header"
+          required: false
+          type: "string"
+          description: "Saga API token when SAGA_API_TOKEN is configured"
+        - name: "limit"
+          in: "query"
+          required: false
+          type: "integer"
+          description: "Maximum number of Sagas to return, capped at 100"
+        - name: "offset"
+          in: "query"
+          required: false
+          type: "integer"
+          description: "Number of Sagas to skip"
+        - name: "state"
+          in: "query"
+          required: false
+          type: "string"
+          description: "Filter by Saga state"
+        - name: "type"
+          in: "query"
+          required: false
+          type: "string"
+          description: "Filter by Saga type"
+      produces:
+        - "application/json"
+      responses:
+        "200":
+          description: "Recent Saga records"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/Saga"
+        "401":
+          description: "Saga API token required"
+  /sagas/{id}:
+    get:
+      tags:
+        - "saga"
+      summary: "Get Saga by id"
+      description: "Returns one Saga record with sensitive payload fields removed."
+      operationId: "getSaga"
+      parameters:
+        - name: "x-saga-api-token"
+          in: "header"
+          required: false
+          type: "string"
+          description: "Saga API token when SAGA_API_TOKEN is configured"
+        - name: "id"
+          in: "path"
+          description: "Saga UUID"
+          required: true
+          type: "string"
+      produces:
+        - "application/json"
+      responses:
+        "200":
+          description: "Saga record"
+          schema:
+            $ref: "#/definitions/Saga"
+        "400":
+          description: "Invalid saga id"
+        "404":
+          description: "Saga not found"
+        "401":
+          description: "Saga API token required"
+definitions:
+  SubscribeResponse:
+    type: "object"
+    properties:
+      message:
+        type: "string"
+      sagaId:
+        type: "string"
+        description: "Saga id for subscription confirmation tracking"
+  SubscribeRequest:
+    type: "object"
+    required:
+      - "email"
+      - "repo"
+    properties:
+      email:
+        type: "string"
+        description: "Email address to subscribe"
+      repo:
+        type: "string"
+        description: "GitHub repository in owner/repo format (e.g., golang/go)"
+  Subscription:
+    type: "object"
+    required:
+      - "email"
+      - "repo"
+    properties:
+      email:
+        type: "string"
+        description: "Email address"
+      repo:
+        type: "string"
+        description: "GitHub repository in owner/repo format"
+      confirmed:
+        type: "boolean"
+        description: "Whether the subscription is confirmed"
+      last_seen_tag:
+        type: "string"
+        description: "Last seen release tag for this repository"
+  Saga:
+    type: "object"
+    properties:
+      id:
+        type: "string"
+      type:
+        type: "string"
+        example: "subscription-confirmation"
+      state:
+        type: "string"
+        enum:
+          - "STARTED"
+          - "NOTIFICATION_PENDING"
+          - "COMPLETED"
+          - "COMPENSATING"
+          - "COMPENSATED"
+          - "FAILED"
+      payload:
+        type: "object"
+        description: "Sanitized Saga payload without email or confirmation token"
+      error:
+        type: "string"
+      created_at:
+        type: "string"
+      updated_at:
+        type: "string"
+      completed_at:
+        type: "string"
