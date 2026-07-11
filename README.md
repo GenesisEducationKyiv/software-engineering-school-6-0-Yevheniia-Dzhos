@@ -1,154 +1,263 @@
-# GitHub Release Notification API
+# GitHub Release Notifier
 
-Node.js service for subscribing to GitHub repository release notifications.
+![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat&logo=nodedotjs&logoColor=white)
+![Express](https://img.shields.io/badge/Express-000000?style=flat&logo=express&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=flat&logo=postgresql&logoColor=white)
+![RabbitMQ](https://img.shields.io/badge/RabbitMQ-FF6600?style=flat&logo=rabbitmq&logoColor=white)
+![gRPC](https://img.shields.io/badge/gRPC-4285F4?style=flat)
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white)
+
+GitHub Release Notifier is a Node.js application for subscribing to email
+notifications about new GitHub repository releases. A user subscribes with an
+email and repository name, confirms the subscription by email, and then receives
+release notifications when the tracked repository publishes a new tag.
+
+The project started as a REST API and was gradually extended with a modular
+architecture, a separate notification service, RabbitMQ messaging, an
+orchestrated Saga, gRPC delivery, observability, and architecture boundary tests.
+
+## Architecture
+
+![High-level architecture](docs/system-design-diagram.svg)
+
+The system is built around two runtime services:
+
+- **Main application**: owns public HTTP API, subscription state, repository
+  tracking, release scanning, Saga orchestration, Swagger docs, metrics, and the
+  static UI.
+- **Notification service**: owns email delivery, SMTP/Nodemailer integration,
+  REST and gRPC notification endpoints, and RabbitMQ command consumption.
+
+PostgreSQL is the source of truth for subscriptions, repositories, release
+history, processed messages, and Saga state. RabbitMQ is used for asynchronous
+release notification commands with retry and dead-letter queues. Subscription
+confirmation uses synchronous gRPC because the Saga orchestrator needs an
+immediate delivery result.
 
 ## What Is Implemented
 
-- REST API documented in `swagger.yaml`
-- Email subscription, confirmation, unsubscribe, and subscription listing
-- GitHub repository validation through GitHub API
-- PostgreSQL persistence with migrations
-- Periodic release scanning
-- RabbitMQ-based communication with a separate notification service
-- ConnectRPC gRPC transport over HTTP/2 for subscription confirmation delivery
-- Protobuf contract in `proto/notification/v1/notification.proto`
-- Buf lint and code generation through `buf.yaml` and `buf.gen.yaml`
-- Orchestrated Saga for subscription confirmation
-- Retry and dead-letter queues for notification commands and Saga replies
-- Metrics, logging, Docker Compose setup, unit and integration tests
+### Product Flow
 
-## Notification Communication
+- Subscribe to GitHub release notifications by `email + owner/repo`.
+- Validate email format and GitHub repository format.
+- Verify repository existence through the GitHub REST API.
+- Store subscriptions as pending until email confirmation.
+- Send confirmation emails through the notification service.
+- Confirm and unsubscribe with secure random tokens.
+- List active subscriptions by email.
+- Periodically scan tracked repositories for new releases.
+- Send release notification emails only to confirmed subscribers.
 
-Subscription confirmation email delivery uses gRPC:
+### Architecture and Reliability
 
-1. The main application creates a pending subscription and Saga record.
-2. The Saga orchestrator calls `NotificationService.SendSubscriptionConfirmation`.
-3. The notification service validates the request and sends the email.
-4. The orchestrator marks the Saga as `COMPLETED` after a successful gRPC response.
-5. If gRPC returns a confirmed delivery error, the orchestrator compensates the
-   pending subscription. If the gRPC request times out, the subscription stays
-   pending because email delivery may have already happened.
+- Modular main application with public module APIs.
+- Separate notification service for email delivery.
+- PostgreSQL migrations and transactional data access.
+- Orchestrated Saga for subscription confirmation.
+- Saga timeout recovery and compensation for failed delivery.
+- RabbitMQ topology with durable queues, retry queues, and DLQs.
+- Idempotent message handling through `processed_messages`.
+- gRPC notification delivery with a protobuf contract.
+- REST notification endpoint kept as a benchmark/reference baseline.
+- Graceful shutdown and reconnect logic for broker consumers.
+- Architecture dependency tests to protect module boundaries.
 
-The previous REST implementation remains available at
-`POST /api/notifications/subscription-confirmation` for comparison. The
-`restClient.js` client is used only as a benchmark/reference baseline, not by
-the production confirmation flow. Release notifications still use RabbitMQ
-commands because they are asynchronous background work.
+### Observability
 
-The implementation uses `@connectrpc/connect-node` with the gRPC transport over
-HTTP/2. It keeps the protobuf contract and gRPC status model while fitting the
-existing Node.js ESM codebase.
+- Structured JSON logs with request IDs.
+- Prometheus metrics exposed through `/metrics`.
+- HTTP RED metrics for request rate, errors, and duration.
+- Release scanner metrics for runs, duration, sent emails, and repository
+  failures.
+- Docker Compose stack for Prometheus, Grafana, Logstash, Elasticsearch, and
+  Kibana.
 
-The gRPC contract lives in:
+## Tech Stack
 
-```text
-proto/notification/v1/notification.proto
+| Area | Technology |
+|---|---|
+| Runtime | Node.js, ESM |
+| HTTP API | Express |
+| API Docs | Swagger UI, `swagger.yaml` |
+| Database | PostgreSQL, `pg`, SQL migrations |
+| Messaging | RabbitMQ, durable queues, retry/DLQ topology |
+| Service Communication | gRPC over HTTP/2 with ConnectRPC |
+| Contract | Protobuf, Buf |
+| Email | Nodemailer, SMTP/MailHog for local development |
+| Observability | Prometheus, Grafana, ELK stack, structured logs |
+| Tests | Vitest, Supertest, Docker-based integration tests, Playwright E2E |
+| Tooling | ESLint, Docker Compose |
+
+## Local Setup
+
+### Prerequisites
+
+- Node.js 20+
+- Docker Desktop / Docker Compose
+
+### Run with Docker Compose
+
+```bash
+cp .env.example .env
 ```
 
-Generate and lint protobuf code with:
+Set `SAGA_API_TOKEN` in `.env` before starting the stack. The Docker Compose
+configuration intentionally refuses to start the main app without this token.
+
+```bash
+docker compose up --build
+```
+
+Useful local URLs:
+
+| Service | URL |
+|---|---|
+| Main app | `http://localhost:3000` |
+| Swagger UI | `http://localhost:3000/docs` |
+| Notification REST API | `http://localhost:3002` |
+| Notification gRPC | `http://localhost:3003` |
+| MailHog UI | `http://localhost:8025` |
+| RabbitMQ Management | `http://localhost:15672` |
+| Prometheus | `http://localhost:9090` |
+| Grafana | `http://localhost:3001` |
+| Kibana | `http://localhost:5601` |
+
+The notification service REST and gRPC ports are published to the host for local
+debugging and benchmarking only. They are internal service-to-service APIs and
+should not be exposed publicly in a real deployment without authentication or
+network isolation.
+
+## API
+
+Main REST API:
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/health` | Basic health check |
+| `GET` | `/health/live` | Liveness check |
+| `GET` | `/health/ready` | Readiness check |
+| `GET` | `/metrics` | Prometheus metrics |
+| `POST` | `/api/subscribe` | Create a pending subscription |
+| `GET` | `/api/confirm/:token` | Confirm subscription |
+| `GET` | `/api/unsubscribe/:token` | Unsubscribe |
+| `GET` | `/api/subscriptions?email=...` | List active subscriptions |
+| `GET` | `/api/sagas` | List Saga records |
+| `GET` | `/api/sagas/:id` | Inspect one Saga |
+
+Saga monitoring endpoints require `x-saga-api-token` or `Authorization: Bearer`
+with the value from `SAGA_API_TOKEN`. If `SAGA_API_TOKEN` is unset outside
+Docker Compose, the Saga endpoints run without authentication, so this variable
+should be set for any shared environment.
+
+Notification service:
+
+| Transport | Endpoint / RPC | Purpose |
+|---|---|---|
+| REST | `POST /api/notifications/subscription-confirmation` | REST baseline for confirmation delivery |
+| gRPC | `NotificationService.SendSubscriptionConfirmation` | Production confirmation delivery |
+| RabbitMQ | `notification.release.send` | Async release notification command |
+
+The protobuf contract is defined in
+[`proto/notification/v1/notification.proto`](proto/notification/v1/notification.proto).
+
+## gRPC and Buf
+
+Subscription confirmation delivery uses gRPC:
+
+1. `POST /api/subscribe` creates a pending subscription and Saga record.
+2. The Saga orchestrator calls `NotificationService.SendSubscriptionConfirmation`.
+3. The notification service validates the request and sends the email.
+4. The Saga is marked `COMPLETED` after a successful gRPC response.
+5. If delivery definitely fails, the pending subscription is compensated. If
+   the gRPC request times out, the subscription is not deleted because the email
+   may already have been sent.
+
+Check and regenerate protobuf output:
 
 ```bash
 npm run proto:check
 ```
 
-## Orchestrated Saga
-
-The main application owns subscription state and acts as the Saga orchestrator.
-The notification service owns email delivery and acts as the Saga participant.
-
-Flow:
-
-1. `POST /api/subscribe` creates a pending subscription and a Saga record.
-2. The orchestrator sends the confirmation command through gRPC.
-3. The notification service sends the email.
-4. The main application completes the Saga or compensates the pending subscription.
-
-Saga state is stored in PostgreSQL. Timeout recovery compensates Sagas that do
-not reach a terminal state. RabbitMQ retry/DLQ topology is still used for
-asynchronous notification commands and Saga reply queues.
-
-## Run
+## Tests and Quality Checks
 
 ```bash
-cp .env.example .env
-docker compose up --build
-```
-
-## Services
-
-- API: `http://localhost:3000`
-- Swagger UI: `http://localhost:3000/docs`
-- Notification service REST: `http://localhost:3002`
-- Notification service gRPC: `http://localhost:3003`
-- MailHog: `http://localhost:8025`
-- RabbitMQ UI: `http://localhost:15672`
-
-The notification service's REST and gRPC ports (3002/3003) have no authentication
-and are published to the host only for local debugging and the transport
-benchmark. Anyone reaching those ports can trigger an email send. Do not expose
-them outside a trusted local machine; a real deployment should keep them on the
-internal Docker network only (drop the host `ports:` mapping) or add a
-service-to-service token.
-
-## Main Endpoints
-
-- `POST /api/subscribe`
-- `GET /api/confirm/{token}`
-- `GET /api/unsubscribe/{token}`
-- `GET /api/subscriptions?email=...`
-- `GET /api/sagas`
-- `GET /api/sagas/{id}`
-
-Saga monitoring endpoints require `x-saga-api-token` (or a `Bearer` token) matching `SAGA_API_TOKEN`.
-If `SAGA_API_TOKEN` is left unset, these endpoints accept requests with no authentication at all,
-so always set it outside local development. Running via `docker-compose.yml` enforces this: the
-`app` service refuses to start without `SAGA_API_TOKEN` set.
-
-## Tests
-
-```bash
-npm run test:unit
 npm run lint
+npm run test:unit
 npm run test:integration
+npm run test:e2e
+npm run arch:check
 ```
+
+What the checks cover:
+
+- unit tests for services, repositories, controllers, consumers, metrics, and
+  Saga behavior;
+- Docker-based integration tests for API flows, RabbitMQ topology, PostgreSQL,
+  and MailHog-backed email delivery;
+- Playwright E2E tests for the browser flow;
+- architecture dependency tests that prevent modules from importing each
+  other's internals;
+- protobuf lint and generation through Buf.
 
 ## REST vs gRPC Benchmark
 
-By default the benchmark starts local no-op REST and gRPC handlers. This keeps
-the measurement focused on transport overhead instead of SMTP, MailHog, email
-templates, or database I/O.
-
-Run:
+The benchmark compares the previous REST notification delivery path with the new
+gRPC path.
 
 ```bash
 npm run benchmark:notification-transport
 ```
 
-Example local result for 100 requests with concurrency 10:
+By default it uses local no-op handlers so the result focuses on transport
+overhead instead of SMTP, templates, database I/O, or MailHog.
 
-```bash
+Example local result:
+
+```text
 REST: 1431.67 req/s
 gRPC: 1244.47 req/s
 gRPC/REST throughput ratio: 0.87x
 ```
 
-For this tiny unary payload and no-op handler, REST can be slightly faster
-because HTTP/2 and protobuf setup overhead dominates the actual work. In the
-real subscription flow, gRPC is still useful because the contract is explicit,
-status codes are typed, and the binary protocol scales better for richer
-internal APIs.
+For this tiny unary payload, REST can be slightly faster because HTTP/2 and
+protobuf setup overhead is larger than the actual work. gRPC is still useful in
+the service boundary because the contract is typed, status codes are explicit,
+and the protocol scales better for richer internal APIs.
 
-Optional settings:
-
-```bash
-BENCHMARK_REQUESTS=200 BENCHMARK_CONCURRENCY=20 npm run benchmark:notification-transport
-```
-
-To benchmark the full running notification service, start the stack and use:
+To benchmark the full running notification service:
 
 ```bash
 BENCHMARK_TARGET=service npm run benchmark:notification-transport
 ```
 
-That mode includes real email delivery through the notification service, so the
-numbers measure the whole service path rather than only REST vs gRPC transport.
+## Documentation
+
+| Document | Description |
+|---|---|
+| [System Design](docs/system-design.md) | High-level system design, flows, components, trade-offs |
+| [Application Architecture](docs/application-architecture.md) | Layers, module boundaries, dependency rules |
+| [Modular Architecture](docs/modular-architecture.md) | Modularization details and public APIs |
+| [Logging](docs/logging.md) | Structured logging and ELK setup |
+| [Metrics](docs/metrics.md) | Prometheus metrics and Grafana dashboards |
+| [Notification Service](services/notification-service/README.md) | Separate service responsibilities and runtime behavior |
+
+## Architecture Decisions
+
+| ADR | Decision |
+|---|---|
+| [ADR-001](docs/adr/001-use-postgresql.md) | Use PostgreSQL as the primary datastore |
+| [ADR-002](docs/adr/002-use-monolith-architecture.md) | Start with a monolith architecture |
+| [ADR-003](docs/adr/003-use-email-confirmation.md) | Require email confirmation before notifications |
+| [ADR-004](docs/adr/004-use-rabbitmq-for-notification-commands.md) | Use RabbitMQ for notification commands |
+| [ADR-005](docs/adr/005-use-orchestrated-saga-for-subscription-confirmation.md) | Use an orchestrated Saga for subscription confirmation |
+| [ADR-006](docs/adr/006-enforce-layered-module-boundaries.md) | Enforce layered module boundaries with tests |
+
+## Project Notes
+
+- Release notifications are asynchronous and remain RabbitMQ-based.
+- Subscription confirmation is synchronous and uses gRPC because the Saga needs
+  a direct success/failure result.
+- The REST notification endpoint remains in the codebase as a comparison
+  baseline for the gRPC homework and benchmark.
+- The project is optimized for clarity and local reproducibility rather than
+  production deployment automation.
