@@ -15,36 +15,47 @@ export {
   setNotificationMessagesInFlight
 } from './metrics.js';
 
-export function registerObservability(app) {
-  app.use(requestLogger);
-  app.use(metricsMiddleware);
+function mountObservability(app, {
+  requestLogger: requestLoggerMiddleware,
+  metricsMiddleware: httpMetricsMiddleware,
+  getMetricsContentType: getContentType,
+  renderMetrics: render
+}) {
+  app.use(requestLoggerMiddleware);
+  app.use(httpMetricsMiddleware);
   app.get('/metrics', async (_req, res, next) => {
     try {
-      res.type(getMetricsContentType()).send(await renderMetrics());
+      res.type(getContentType()).send(await render());
     } catch (error) {
       next(error);
     }
   });
 }
 
+export function registerObservability(app) {
+  mountObservability(app, {
+    requestLogger,
+    metricsMiddleware,
+    getMetricsContentType,
+    renderMetrics
+  });
+}
+
 export function createObservability(serviceName) {
   const logger = createLogger(serviceName);
   const metrics = createMetrics();
-  const requestLogger = createRequestLogger(logger);
-  const metricsMiddleware = createMetricsMiddleware(metrics.recordHttpRequest);
+  const serviceRequestLogger = createRequestLogger(logger);
+  const serviceMetricsMiddleware = createMetricsMiddleware(metrics.recordHttpRequest);
 
   return {
     logger,
     setNotificationMessagesInFlight: metrics.setNotificationMessagesInFlight,
     registerObservability(app) {
-      app.use(requestLogger);
-      app.use(metricsMiddleware);
-      app.get('/metrics', async (_req, res, next) => {
-        try {
-          res.type(metrics.getMetricsContentType()).send(await metrics.renderMetrics());
-        } catch (error) {
-          next(error);
-        }
+      mountObservability(app, {
+        requestLogger: serviceRequestLogger,
+        metricsMiddleware: serviceMetricsMiddleware,
+        getMetricsContentType: metrics.getMetricsContentType,
+        renderMetrics: metrics.renderMetrics
       });
     }
   };

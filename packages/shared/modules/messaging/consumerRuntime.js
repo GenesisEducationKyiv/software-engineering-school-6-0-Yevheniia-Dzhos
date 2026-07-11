@@ -1,3 +1,11 @@
+export function getDeadLetterAttemptCount(message, queueName) {
+  const death = message.properties.headers?.['x-death']?.find((entry) => {
+    return entry.queue === queueName;
+  });
+
+  return Number(death?.count || 0) + 1;
+}
+
 export function createBrokerConsumerRuntime({
   brokerClient,
   topology,

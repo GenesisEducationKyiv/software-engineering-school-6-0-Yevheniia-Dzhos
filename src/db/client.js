@@ -1,16 +1,11 @@
-import pg from 'pg';
+import { createDatabasePool } from '@notifier/shared/modules/database/pool.js';
 import { logger } from '@notifier/shared/modules/observability/index.js';
 import { env } from '../config/env.js';
 
-export const pool = new pg.Pool({ connectionString: env.databaseUrl });
-
-pool.on('error', (error) => {
-  logger.error('Unexpected database pool error', { error });
+export const { pool, query } = createDatabasePool({
+  connectionString: env.databaseUrl,
+  logger
 });
-
-export async function query(text, params = []) {
-  return pool.query(text, params);
-}
 
 export async function withTransaction(work) {
   const client = await pool.connect();

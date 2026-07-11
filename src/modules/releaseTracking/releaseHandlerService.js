@@ -5,6 +5,7 @@ import {
   updateLastSeenTag
 } from './trackedRepositoryRepository.js';
 import { processInChunks } from './processInChunks.js';
+import { withTransaction } from '../../db/client.js';
 import {
   logger,
   recordReleaseNotificationsSent
@@ -57,11 +58,13 @@ export async function handleDiscoveredRelease(discovery, chunkSize) {
     });
   });
 
-  if (subscribers.length > 0 && failedDeliveries.length === subscribers.length) {
+  if (failedDeliveries.length > 0) {
     throw failedDeliveries[0].result.reason;
   }
 
   recordReleaseNotificationsSent(sentCount);
-  await recordDiscoveredRelease(repository.id, latestTag);
-  await updateLastSeenTag(repository.id, latestTag);
+  await withTransaction(async (client) => {
+    await recordDiscoveredRelease(repository.id, latestTag, client);
+    await updateLastSeenTag(repository.id, latestTag, client);
+  });
 }
